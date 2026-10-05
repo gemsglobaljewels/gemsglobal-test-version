@@ -14,7 +14,7 @@
 
 ---
 
-## 🔧 Changes Made
+## 🔧 Changes Made 
 
 ### 1. Updated Email Interface (`lib/email.ts`)
 
@@ -26,7 +26,7 @@ interface OrderConfirmationEmailData {
     name: string
     quantity: number
     price: number
-    image?: string // ✅ NEW - Product image URL
+    image?: string // ✅ NEW - Product image URL egegegeg
   }>
 }
 ```
