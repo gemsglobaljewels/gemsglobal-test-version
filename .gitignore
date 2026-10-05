@@ -1,0 +1,28 @@
+# ── NEXT.JS / REACT ────────────────────────────────────────────
+node_modules/
+.next/
+out/
+build/
+
+# ── ENVIRONMENT VARIABLES ──────────────────────────────────────
+# Never commit your .env files to git!!!
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ── OS / IDE ───────────────────────────────────────────────────
+.DS_Store
+*.pem
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.log
+
+# ── PROJECT SPECIFIC ───────────────────────────────────────────
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.turbo/

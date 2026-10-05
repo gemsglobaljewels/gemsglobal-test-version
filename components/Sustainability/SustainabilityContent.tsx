@@ -1,0 +1,808 @@
+'use client'
+
+import { useEffect, useRef } from 'react'
+import Link from 'next/link'
+import {
+  ArrowRight, ArrowDown,
+  Leaf, Sprout, Recycle, Gem, Diamond, Sparkles, ShieldCheck, BadgeCheck,
+  Award, HeartHandshake, HandHeart, Users, Scale, Link as LinkIcon, Factory,
+  Hammer, Wrench, PackageCheck, Archive, Droplets, Sun, Feather, Globe,
+  CircleCheck, type LucideIcon,
+} from 'lucide-react'
+import HeaderMegaMenu from '@/components/HeaderMegaMenu'
+import { Footer } from '@/components/footer'
+import { SustainabilityConfig, SustainabilitySection } from '@/lib/sustainability'
+
+/* ════════════════════════════════════════════════════════════════
+   SUSTAINABILITY — public editorial page  ·  THEME-COLOUR REDESIGN
+   A clean, Swiss-editorial page on a WHITE canvas. The only colour is the
+   site's own theme accent — warm taupe-gold (#8F7A70) — paired with warm
+   espresso ink and soft warm greys (no black). White / warm off-white
+   bands give rhythm; hairline rules, generous whitespace, crisp
+   rectangular frames and a numbered 01 / 02 … section index carry the
+   layout. Photography renders grayscale by default and reveals full
+   colour on hover, so the page itself stays quiet while the jewellery
+   is still inspectable.
+
+   Driven entirely by the admin-editable SustainabilityConfig: cinematic
+   hero, trust-stat strip, editorial intro, and reorderable content
+   sections in three layouts — 'statement' (centred prose + optional
+   image), 'split' (alternating image/text with a points checklist) and
+   'points' (an icon-card grid) — plus a full-bleed image CTA. All styles
+   scoped `.su-`.
+════════════════════════════════════════════════════════════════ */
+
+const FALLBACK_IMG =
+  'https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=1000&h=1200&fit=crop&q=85'
+
+/** name → lucide component (names come from SUSTAINABILITY_ICONS in the lib). */
+const ICONS: Record<string, LucideIcon> = {
+  Leaf, Sprout, Recycle, Gem, Diamond, Sparkles, ShieldCheck, BadgeCheck,
+  Award, HeartHandshake, HandHeart, Users, Scale, Link: LinkIcon, Factory,
+  Hammer, Wrench, PackageCheck, Archive, Droplets, Sun, Feather, Globe,
+  CircleCheck,
+}
+const iconFor = (name: string): LucideIcon => ICONS[name] || Leaf
+
+/** Split a textarea value into paragraphs on blank lines. */
+const toParagraphs = (text: string) =>
+  String(text || '')
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+
+/** 1 → "01" — editorial section index. */
+const idx = (n: number) => String(n).padStart(2, '0')
+
+export default function SustainabilityContent({
+  config,
+}: {
+  config: SustainabilityConfig
+}) {
+  const { hero, closing } = config
+  const stats = (config.stats || []).filter((s) => s.value || s.label)
+  const sections = (config.sections || []).filter((s) => s.is_visible)
+  const heroIntro = toParagraphs(hero.intro)
+
+  /* CTA backdrop: admin-set image first, then first section image, hero, stock */
+  const ctaBg =
+    closing.bg_image ||
+    sections.find((s) => s.image)?.image ||
+    hero.image ||
+    FALLBACK_IMG
+
+  /* ── scroll-reveal + subtle parallax on media ── */
+  const pageRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+    if (!reduce && 'IntersectionObserver' in window) {
+      const els = Array.from(
+        document.querySelectorAll<HTMLElement>('.su-page [data-reveal]')
+      )
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting) {
+              e.target.classList.add('su-in')
+              e.target.classList.remove('su-pre')
+              io.unobserve(e.target)
+            }
+          }
+        },
+        { threshold: 0.12, rootMargin: '0px 0px -8% 0px' }
+      )
+      for (const el of els) {
+        if (el.getBoundingClientRect().top > window.innerHeight * 0.9) {
+          el.classList.add('su-pre')
+          io.observe(el)
+        }
+      }
+
+      const media = Array.from(document.querySelectorAll<HTMLElement>('.su-parallax'))
+      let raf = 0
+      const onScroll = () => {
+        if (raf) return
+        raf = requestAnimationFrame(() => {
+          const vh = window.innerHeight
+          for (const m of media) {
+            const r = m.getBoundingClientRect()
+            if (r.bottom < 0 || r.top > vh) continue
+            const p = (r.top + r.height / 2 - vh / 2) / vh // -0.5..0.5
+            m.style.setProperty('--su-py', `${(-p * 24).toFixed(1)}px`)
+          }
+          raf = 0
+        })
+      }
+      onScroll()
+      window.addEventListener('scroll', onScroll, { passive: true })
+      window.addEventListener('resize', onScroll)
+      return () => {
+        io.disconnect()
+        window.removeEventListener('scroll', onScroll)
+        window.removeEventListener('resize', onScroll)
+        if (raf) cancelAnimationFrame(raf)
+      }
+    }
+  }, [])
+
+  /* ── per-layout section renderer (n = 1-based editorial index) ── */
+  const renderSection = (s: SustainabilitySection, i: number, n: number) => {
+    const paras = toParagraphs(s.body)
+    const pts = s.points || []
+
+    /* ── STATEMENT: centred editorial band + optional image ── */
+    if (s.layout === 'statement') {
+      return (
+        <section className="su-statement" data-reveal key={s.id || i}>
+          <span className="su-statement-num" aria-hidden="true">{idx(n)}</span>
+          <div className="su-statement-in">
+            <span className="su-orn" aria-hidden="true">
+              <i /><Leaf size={15} strokeWidth={1.5} /><i />
+            </span>
+            {s.eyebrow && <p className="su-statement-eyebrow">{s.eyebrow}</p>}
+            {s.title && <h2 className="su-statement-title">{s.title}</h2>}
+            {paras.length > 0 && (
+              <div className="su-statement-copy">
+                {paras.map((p, j) => (
+                  <p key={j} className={j === 0 ? 'su-statement-lead' : ''}>{p}</p>
+                ))}
+              </div>
+            )}
+            {s.cta_text && (
+              <Link href={s.cta_link || '/collection'} className="su-btn su-btn--line">
+                <span>{s.cta_text}</span>
+                <ArrowRight size={16} className="su-btn-ico" />
+              </Link>
+            )}
+          </div>
+          {s.image && (
+            <div className="su-statement-media" data-reveal>
+              <div className="su-statement-frame">
+                <div className="su-parallax su-statement-imgwrap">
+                  <img src={s.image} alt={s.title || ''} className="su-img su-statement-img" loading="lazy" />
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      )
+    }
+
+    /* ── POINTS: heading + icon-card grid ── */
+    if (s.layout === 'points') {
+      return (
+        <section className="su-points" data-reveal key={s.id || i}>
+          <span className="su-points-num" aria-hidden="true">{idx(n)}</span>
+          <div className="su-points-head">
+            {s.eyebrow && (
+              <span className="su-eyebrow">
+                <span className="su-eyebrow-line" />{s.eyebrow}<span className="su-eyebrow-line" />
+              </span>
+            )}
+            {s.title && <h2 className="su-points-title">{s.title}</h2>}
+            {paras.length > 0 && (
+              <div className="su-points-intro">
+                {paras.map((p, j) => <p key={j}>{p}</p>)}
+              </div>
+            )}
+          </div>
+          {pts.length > 0 && (
+            <div className="su-cards">
+              {pts.map((p, k) => {
+                const Ic = iconFor(p.icon)
+                return (
+                  <article className="su-card" data-reveal key={p.id}>
+                    <span className="su-card-n" aria-hidden="true">{idx(k + 1)}</span>
+                    <span className="su-card-ic"><Ic size={22} strokeWidth={1.5} /></span>
+                    {p.title && <h3 className="su-card-t">{p.title}</h3>}
+                    {p.text && <p className="su-card-x">{p.text}</p>}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+          {s.cta_text && (
+            <div className="su-points-cta">
+              <Link href={s.cta_link || '/collection'} className="su-btn su-btn--line">
+                <span>{s.cta_text}</span>
+                <ArrowRight size={16} className="su-btn-ico" />
+              </Link>
+            </div>
+          )}
+        </section>
+      )
+    }
+
+    /* ── SPLIT: alternating image + text with a points checklist ── */
+    return (
+      <article
+        className={`su-split ${s.image_side === 'right' ? 'su-split--img-right' : 'su-split--img-left'}`}
+        data-reveal
+        key={s.id || i}
+      >
+        <div className="su-split-media">
+          <div className="su-split-frame">
+            <div className="su-parallax su-split-imgwrap">
+              <img src={s.image || FALLBACK_IMG} alt={s.title || ''} className="su-img su-split-img" loading="lazy" />
+            </div>
+          </div>
+          <span className="su-split-tag" aria-hidden="true">{idx(n)}</span>
+        </div>
+
+        <div className="su-split-copy">
+          {s.eyebrow && (
+            <span className="su-split-eyebrow">
+              <span className="su-split-eyebrow-n">{idx(n)}</span>
+              {s.eyebrow}
+            </span>
+          )}
+          {s.title && <h2 className="su-split-title">{s.title}</h2>}
+          {paras.length > 0 && (
+            <div className="su-split-body">
+              {paras.map((p, j) => <p key={j}>{p}</p>)}
+            </div>
+          )}
+          {pts.length > 0 && (
+            <ul className="su-checks">
+              {pts.map((p) => {
+                const Ic = iconFor(p.icon)
+                return (
+                  <li className="su-check" key={p.id}>
+                    <span className="su-check-ic"><Ic size={17} strokeWidth={1.7} /></span>
+                    <div className="su-check-body">
+                      {p.title && <span className="su-check-t">{p.title}</span>}
+                      {p.text && <p className="su-check-x">{p.text}</p>}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {s.cta_text && (
+            <Link href={s.cta_link || '/collection'} className="su-btn su-btn--line">
+              <span>{s.cta_text}</span>
+              <ArrowRight size={16} className="su-btn-ico" />
+            </Link>
+          )}
+        </div>
+      </article>
+    )
+  }
+
+  return (
+    <>
+      <style>{CSS}</style>
+      <HeaderMegaMenu />
+
+      <main className="su-page" ref={pageRef as any} suppressHydrationWarning>
+        {/* ── HERO ─────────────────────────────────────────────── */}
+        <section className="su-hero">
+          <div className="su-hero-grid">
+            <div className="su-hero-copy" data-reveal>
+              <p className="su-kicker">
+                <span className="su-kicker-line" />
+                {hero.eyebrow || 'Our Responsibility'}
+              </p>
+              <h1 className="su-hero-title">
+                {hero.title} {hero.accent && <em>{hero.accent}</em>}
+              </h1>
+              {hero.subtitle && <p className="su-hero-lead">{hero.subtitle}</p>}
+              <div className="su-hero-actions">
+                <a href="#su-approach" className="su-btn su-btn--solid">
+                  <span>Explore Our Approach</span>
+                  <ArrowDown size={16} className="su-btn-ico su-btn-ico--down" />
+                </a>
+                <Link href={closing.cta_link || '/collection'} className="su-btn su-btn--line">
+                  <span>{closing.cta_text || 'Shop the Collection'}</span>
+                  <ArrowRight size={16} className="su-btn-ico" />
+                </Link>
+              </div>
+            </div>
+
+            {hero.image && (
+              <div className="su-hero-media" data-reveal>
+                <span className="su-hero-shadow" aria-hidden="true" />
+                <div className="su-hero-frame">
+                  <div className="su-parallax su-hero-imgwrap">
+                    <img src={hero.image} alt="" className="su-img su-hero-img" />
+                  </div>
+                </div>
+                {hero.badge_text && (
+                  <span className="su-hero-badge">
+                    <Leaf size={13} strokeWidth={1.7} /> {hero.badge_text}
+                  </span>
+                )}
+                <span className="su-hero-tag" aria-hidden="true">
+                  <Sprout size={16} strokeWidth={1.5} />
+                  <span><strong>Conscious</strong>Fine Jewellery</span>
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="su-scrollcue" aria-hidden="true">
+            <span className="su-scrollcue-tx">Scroll</span>
+            <span className="su-scrollcue-bar"><i /></span>
+          </div>
+        </section>
+
+        {/* ── TRUST STATS STRIP (black band) ────────────────────── */}
+        {stats.length > 0 && (
+          <section className="su-stats" data-reveal>
+            <div className="su-stats-in">
+              {stats.map((st) => (
+                <div className="su-stat" key={st.id}>
+                  {st.value && <span className="su-stat-v">{st.value}</span>}
+                  {st.label && <span className="su-stat-l">{st.label}</span>}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── EDITORIAL INTRO ──────────────────────────────────── */}
+        {heroIntro.length > 0 && (
+          <section className="su-intro" data-reveal>
+            <div className="su-intro-in">
+              <div className="su-intro-aside">
+                <span className="su-intro-rule" aria-hidden="true" />
+                <span className="su-intro-label">Our Ethos</span>
+              </div>
+              <div className="su-intro-copy">
+                {heroIntro.map((p, i) => (
+                  <p key={i} className={i === 0 ? 'su-intro-lead' : ''}>{p}</p>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── CONTENT SECTIONS ─────────────────────────────────── */}
+        {sections.length > 0 && (
+          <section className="su-approach" id="su-approach">
+            {(config.sections_eyebrow || config.sections_title) && (
+              <div className="su-head" data-reveal>
+                {config.sections_eyebrow && (
+                  <span className="su-eyebrow">
+                    <span className="su-eyebrow-line" />
+                    {config.sections_eyebrow}
+                    <span className="su-eyebrow-line" />
+                  </span>
+                )}
+                {config.sections_title && (
+                  <h2 className="su-head-title">{config.sections_title}</h2>
+                )}
+              </div>
+            )}
+
+            <div className="su-sections">
+              {sections.map((s, i) => renderSection(s, i, i + 1))}
+            </div>
+          </section>
+        )}
+
+        {/* ── FULL-BLEED CLOSING CTA ────────────────────────────── */}
+        {(closing.title || closing.cta_text) && (
+          <section className={`su-cta ${closing.theme === 'dark' ? 'is-dark' : 'is-accent'}`} data-reveal>
+            <div className="su-cta-bg" aria-hidden="true">
+              <img src={ctaBg} alt="" className="su-cta-bg-img" />
+            </div>
+            <span className="su-cta-veil" aria-hidden="true" />
+            <span className="su-cta-glow" aria-hidden="true" />
+
+            <div className="su-cta-in">
+              <span className="su-cta-orn" aria-hidden="true">
+                <i /><Leaf size={16} strokeWidth={1.4} /><i />
+              </span>
+              {closing.eyebrow && <p className="su-cta-eyebrow">{closing.eyebrow}</p>}
+              {closing.title && (
+                <h2 className="su-cta-title">
+                  {closing.title} {closing.accent && <em>{closing.accent}</em>}
+                </h2>
+              )}
+              {closing.subtitle && <p className="su-cta-sub">{closing.subtitle}</p>}
+              {closing.cta_text && (
+                <div className="su-cta-actions">
+                  <Link href={closing.cta_link || '/collection'} className="su-cta-btn">
+                    <span>{closing.cta_text}</span>
+                    <ArrowRight size={18} className="su-arrow" />
+                  </Link>
+                  <Link href="/custom-order" className="su-cta-btn su-cta-btn--ghost">
+                    <span>Create a Custom Piece</span>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        <Footer />
+      </main>
+    </>
+  )
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SCOPED CSS  ·  white canvas · site theme taupe-gold accent (no black)
+════════════════════════════════════════════════════════════════ */
+const CSS = `
+.su-page{
+  /* ── warm monochrome base (white bg + espresso ink + warm greys) ── */
+  --su-black:#1c1611;
+  --su-ink:#2c231e;
+  --su-body:#5a4f47;
+  --su-muted:#8b7d71;
+  --su-paper:#ffffff;
+  --su-paper-2:#faf7f3;
+  --su-paper-3:#f2ede8;
+  --su-line:rgba(44,35,30,.12);
+  --su-line-2:rgba(44,35,30,.20);
+  --su-line-w:rgba(255,255,255,.20);
+  /* ── the one accent: SITE THEME colour — warm taupe-gold (#8F7A70) ── */
+  --su-accent:#8f7a70;
+  --su-accent-deep:#6f5a4d;
+  --su-accent-bright:#a4897b;
+  --su-accent-soft:#f2ebe5;
+  --su-accent-tint:#f8f3ee;
+  --su-accent-line:rgba(143,122,112,.34);
+  /* ── type ── */
+  --su-serif:var(--font-playfair, 'Cormorant Garamond', Georgia, serif);
+  --su-display:var(--font-main, 'Bodoni Moda', Georgia, serif);
+  --su-sans:var(--font-dmsans, system-ui, sans-serif);
+  --su-e:cubic-bezier(.22,1,.36,1);
+  --su-py:0px;
+  background:var(--su-paper); color:var(--su-body); min-height:100vh; overflow-x:clip;
+}
+.su-page *{ box-sizing:border-box; }
+.su-page ::selection{ background:var(--su-accent); color:#fff; }
+.su-page a:focus-visible,
+.su-page button:focus-visible{ outline:2px solid var(--su-accent); outline-offset:3px; border-radius:2px; }
+
+/* ── reveal ── */
+.su-pre{ opacity:0; transform:translateY(30px); }
+.su-in{ animation:suReveal .9s var(--su-e) both; }
+@keyframes suReveal{ from{ opacity:0; transform:translateY(30px);} to{ opacity:1; transform:none;} }
+
+/* ── shared media: grayscale by default, colour on hover ── */
+.su-img{
+  width:100%; height:100%; object-fit:cover; display:block;
+  filter:grayscale(1) contrast(1.03);
+  transition:filter 1s var(--su-e), transform 1.4s var(--su-e);
+}
+
+/* ── kicker / eyebrow ── */
+.su-kicker{
+  display:inline-flex; align-items:center; gap:14px;
+  font-family:var(--su-sans); font-size:11.5px; font-weight:700; letter-spacing:.36em;
+  text-transform:uppercase; color:var(--su-accent); margin:0 0 26px;
+}
+.su-kicker-line{ display:block; width:46px; height:1px; background:var(--su-accent); opacity:.85; }
+.su-eyebrow{
+  display:inline-flex; align-items:center; gap:14px;
+  font-family:var(--su-sans); font-size:11px; font-weight:700; letter-spacing:.32em;
+  text-transform:uppercase; color:var(--su-accent); margin-bottom:18px;
+}
+.su-eyebrow-line{ display:block; width:34px; height:1px; background:var(--su-accent-line); }
+
+/* ── buttons ── */
+.su-btn{
+  position:relative; display:inline-flex; align-items:center; gap:11px;
+  font-family:var(--su-sans); font-size:12px; font-weight:600; letter-spacing:.14em;
+  text-transform:uppercase; text-decoration:none; cursor:pointer;
+  padding:16px 32px; border-radius:0; border:1px solid transparent;
+  transition:transform .35s var(--su-e), box-shadow .35s var(--su-e), background .3s ease, color .3s ease, border-color .3s ease;
+  white-space:nowrap;
+}
+.su-btn-ico{ transition:transform .35s var(--su-e); }
+.su-btn:hover .su-btn-ico{ transform:translateX(4px); }
+.su-btn:hover .su-btn-ico--down{ transform:translateY(4px); }
+.su-btn--solid{ background:var(--su-accent); color:#fff; box-shadow:0 18px 40px -20px rgba(44,35,30,.45); }
+.su-btn--solid:hover{ background:var(--su-accent-deep); transform:translateY(-2px); box-shadow:0 26px 52px -20px rgba(44,35,30,.4); }
+.su-btn--dark{ background:var(--su-ink); color:#fff; }
+.su-btn--dark:hover{ background:var(--su-accent-deep); transform:translateY(-2px); }
+.su-btn--line{ background:transparent; color:var(--su-ink); border-color:var(--su-line-2); }
+.su-btn--line:hover{ border-color:var(--su-accent); color:var(--su-accent); transform:translateY(-2px); }
+.su-statement .su-btn--line,
+.su-points .su-btn--line,
+.su-split .su-btn--line{ margin-top:30px; }
+
+/* ══════════ HERO ══════════ */
+.su-hero{
+  position:relative; min-height:clamp(560px,88vh,900px);
+  display:flex; flex-direction:column; justify-content:center;
+  padding:clamp(70px,10vh,130px) clamp(18px,4vw,64px) clamp(56px,8vh,88px);
+  background:var(--su-paper);
+  border-bottom:1px solid var(--su-line);
+  overflow:hidden;
+}
+.su-hero::before{
+  content:''; position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.55;
+  background-image:linear-gradient(var(--su-line) 1px, transparent 1px);
+  background-size:100% clamp(58px,7vh,86px);
+  -webkit-mask-image:linear-gradient(180deg, transparent, #000 24%, #000 76%, transparent);
+          mask-image:linear-gradient(180deg, transparent, #000 24%, #000 76%, transparent);
+}
+.su-hero::after{
+  content:''; position:absolute; left:0; top:0; bottom:0; width:clamp(3px,.4vw,5px);
+  background:var(--su-accent); z-index:1;
+}
+.su-hero-grid{
+  position:relative; z-index:1; width:100%; max-width:1320px; margin:0 auto;
+  display:grid; grid-template-columns:1.05fr .95fr; gap:clamp(36px,5vw,92px); align-items:center;
+}
+.su-hero-copy{ position:relative; }
+.su-hero-title{
+  font-family:var(--su-display); font-size:clamp(42px,6.8vw,88px); font-weight:400; line-height:1.0;
+  letter-spacing:-.018em; color:var(--su-ink); margin:0 0 28px;
+}
+.su-hero-title em{ display:block; font-family:var(--su-serif); font-style:italic; font-weight:500; color:var(--su-accent); margin-top:.06em; }
+.su-hero-lead{
+  font-family:var(--su-serif); font-size:clamp(19px,2.1vw,25px); font-weight:500; font-style:italic; line-height:1.45;
+  color:var(--su-body); max-width:520px; margin:0 0 38px;
+}
+.su-hero-actions{ display:flex; flex-wrap:wrap; gap:14px; }
+
+.su-hero-media{ position:relative; }
+.su-hero-shadow{
+  position:absolute; z-index:0; right:-18px; bottom:-18px; width:74%; height:74%;
+  border:1px solid var(--su-accent-line); pointer-events:none;
+}
+.su-hero-frame{
+  position:relative; z-index:1; border-radius:0; overflow:hidden; aspect-ratio:4/5;
+  background:var(--su-paper-3); box-shadow:0 40px 90px -46px rgba(44,35,30,.5);
+}
+.su-hero-imgwrap{ position:absolute; inset:-8% 0; will-change:transform; transform:translateY(var(--su-py)); }
+.su-hero-media:hover .su-hero-img{ transform:scale(1.05); filter:grayscale(0) contrast(1); }
+.su-hero-badge{
+  position:absolute; left:-14px; top:30px; z-index:3;
+  display:inline-flex; align-items:center; gap:8px; background:#fff; color:var(--su-accent);
+  font-family:var(--su-sans); font-size:10.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase;
+  padding:12px 18px; border:1px solid var(--su-line); box-shadow:0 16px 34px -18px rgba(44,35,30,.34);
+}
+.su-hero-tag{
+  position:absolute; right:-16px; bottom:26px; z-index:3;
+  display:inline-flex; align-items:center; gap:11px;
+  background:var(--su-accent); color:#fff; padding:13px 18px;
+  box-shadow:0 22px 46px -20px rgba(44,35,30,.45);
+}
+.su-hero-tag span{ display:flex; flex-direction:column; line-height:1.25; font-family:var(--su-sans); font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.72); }
+.su-hero-tag strong{ font-family:var(--su-serif); font-size:15px; font-weight:600; letter-spacing:.02em; text-transform:none; color:#fff; }
+
+.su-scrollcue{ position:absolute; left:50%; bottom:24px; transform:translateX(-50%); z-index:1; display:flex; flex-direction:column; align-items:center; gap:9px; }
+.su-scrollcue-tx{ font-family:var(--su-sans); font-size:9.5px; font-weight:700; letter-spacing:.32em; text-transform:uppercase; color:var(--su-muted); }
+.su-scrollcue-bar{ position:relative; width:1px; height:44px; background:var(--su-line-2); overflow:hidden; }
+.su-scrollcue-bar i{ position:absolute; top:-40%; left:0; width:100%; height:40%; background:var(--su-accent); animation:suCue 1.9s var(--su-e) infinite; }
+@keyframes suCue{ 0%{ top:-40%;} 70%,100%{ top:100%;} }
+
+@media(max-width:900px){
+  .su-hero{ min-height:auto; text-align:center; }
+  .su-hero::after{ display:none; }
+  .su-hero-grid{ grid-template-columns:1fr; gap:46px; }
+  .su-kicker{ justify-content:center; }
+  .su-hero-lead{ margin-left:auto; margin-right:auto; }
+  .su-hero-actions{ justify-content:center; }
+  .su-hero-media{ order:-1; }
+  .su-hero-frame{ max-width:400px; margin:0 auto; aspect-ratio:4/5; }
+  .su-hero-shadow{ display:none; }
+  .su-scrollcue{ display:none; }
+  .su-hero::before{ display:none; }
+}
+
+/* ══════════ TRUST STATS (black band) ══════════ */
+.su-stats{ padding:clamp(38px,5vw,64px) clamp(18px,4vw,64px); background:var(--su-paper-2); border-top:1px solid var(--su-line); border-bottom:1px solid var(--su-line); }
+.su-stats-in{
+  max-width:1120px; margin:0 auto; display:grid; grid-template-columns:repeat(4,1fr);
+  gap:clamp(12px,3vw,40px);
+}
+.su-stat{ position:relative; text-align:center; padding:6px clamp(8px,2vw,22px); }
+.su-stat + .su-stat::before{ content:''; position:absolute; left:0; top:14%; height:72%; width:1px; background:var(--su-line-2); }
+.su-stat-v{ display:block; font-family:var(--su-display); font-size:clamp(26px,3.1vw,40px); font-weight:400; line-height:1; color:var(--su-ink); letter-spacing:-.01em; }
+.su-stat-v::after{ content:''; display:block; width:26px; height:2px; background:var(--su-accent); margin:14px auto 0; }
+.su-stat-l{ display:block; margin-top:14px; font-family:var(--su-sans); font-size:10.5px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:var(--su-muted); }
+@media(max-width:720px){
+  .su-stats-in{ grid-template-columns:repeat(2,1fr); gap:30px 12px; }
+  .su-stat:nth-child(odd)::before{ display:none; }
+}
+
+/* ══════════ EDITORIAL INTRO ══════════ */
+.su-intro{ padding:clamp(66px,9vw,124px) clamp(18px,4vw,64px) clamp(20px,3vw,40px); }
+.su-intro-in{ max-width:1000px; margin:0 auto; display:grid; grid-template-columns:auto 1fr; gap:clamp(26px,4vw,60px); align-items:start; }
+.su-intro-aside{ display:flex; flex-direction:column; align-items:flex-start; gap:16px; padding-top:12px; }
+.su-intro-rule{ display:block; width:2px; height:56px; background:var(--su-accent); }
+.su-intro-label{ font-family:var(--su-sans); font-size:10.5px; font-weight:700; letter-spacing:.28em; text-transform:uppercase; color:var(--su-accent); writing-mode:vertical-rl; }
+.su-intro-copy{ min-width:0; }
+.su-intro-lead{
+  font-family:var(--su-serif); font-size:clamp(23px,2.8vw,34px); font-weight:500; line-height:1.4;
+  color:var(--su-ink); margin:0 0 22px;
+}
+.su-intro-copy p:not(.su-intro-lead){
+  font-family:var(--su-sans); font-size:clamp(15px,1.5vw,16.5px); font-weight:300; line-height:1.85;
+  color:var(--su-body); margin:0 0 16px;
+}
+.su-intro-copy p:last-child{ margin-bottom:0; }
+@media(max-width:640px){
+  .su-intro-in{ grid-template-columns:1fr; gap:22px; }
+  .su-intro-aside{ flex-direction:row; align-items:center; gap:12px; padding-top:0; }
+  .su-intro-rule{ width:40px; height:2px; }
+  .su-intro-label{ writing-mode:horizontal-tb; }
+}
+
+/* ══════════ APPROACH WRAPPER + HEADING ══════════ */
+.su-approach{ padding:clamp(56px,8vw,110px) clamp(18px,4vw,64px) clamp(30px,5vw,60px); background:var(--su-paper-2); border-top:1px solid var(--su-line); }
+.su-head{ display:flex; flex-direction:column; align-items:center; text-align:center; max-width:1200px; margin:0 auto clamp(46px,7vw,86px); }
+.su-head-title{
+  font-family:var(--su-serif); font-size:clamp(32px,5vw,58px); font-weight:500; line-height:1.04;
+  letter-spacing:.004em; color:var(--su-ink); margin:0;
+}
+.su-sections{ display:flex; flex-direction:column; gap:clamp(68px,10vw,128px); max-width:1200px; margin:0 auto; }
+
+/* ══════════ STATEMENT ══════════ */
+.su-statement{ position:relative; display:flex; flex-direction:column; align-items:center; text-align:center; }
+.su-statement-num{
+  position:absolute; top:-.35em; left:50%; transform:translateX(-50%); z-index:0; pointer-events:none;
+  font-family:var(--su-display); font-size:clamp(120px,20vw,240px); line-height:1; font-weight:400;
+  color:var(--su-ink); opacity:.06;
+}
+.su-statement-in{ position:relative; z-index:1; max-width:820px; }
+.su-orn{ display:inline-flex; align-items:center; gap:14px; color:var(--su-accent); margin-bottom:22px; }
+.su-orn i{ display:block; width:46px; height:1px; background:linear-gradient(90deg, transparent, var(--su-accent)); }
+.su-orn i:last-child{ background:linear-gradient(90deg, var(--su-accent), transparent); }
+.su-statement-eyebrow{ font-family:var(--su-sans); font-size:11px; font-weight:700; letter-spacing:.32em; text-transform:uppercase; color:var(--su-accent); margin:0 0 16px; }
+.su-statement-title{
+  font-family:var(--su-serif); font-size:clamp(30px,4.6vw,54px); font-weight:500; line-height:1.08;
+  color:var(--su-ink); margin:0 0 26px;
+}
+.su-statement-lead{
+  font-family:var(--su-serif); font-size:clamp(19px,2.2vw,26px); font-weight:500; line-height:1.5; font-style:italic;
+  color:var(--su-accent-deep); margin:0 0 20px;
+}
+.su-statement-copy p:not(.su-statement-lead){
+  font-family:var(--su-sans); font-size:clamp(15px,1.5vw,16.5px); font-weight:300; line-height:1.85; color:var(--su-body);
+  margin:0 auto 16px; max-width:640px;
+}
+.su-statement-copy p:last-child{ margin-bottom:0; }
+.su-statement-media{ width:100%; max-width:1040px; margin-top:clamp(38px,5vw,62px); }
+.su-statement-frame{
+  position:relative; border-radius:0; overflow:hidden; aspect-ratio:21/9;
+  background:var(--su-paper-3); box-shadow:0 40px 90px -50px rgba(44,35,30,.5);
+}
+.su-statement-imgwrap{ position:absolute; inset:-8% 0; will-change:transform; transform:translateY(var(--su-py)); }
+.su-statement-media:hover .su-statement-img{ transform:scale(1.04); filter:grayscale(0) contrast(1); }
+@media(max-width:640px){ .su-statement-frame{ aspect-ratio:4/3; } }
+
+/* ══════════ SPLIT ══════════ */
+.su-split{ display:grid; grid-template-columns:1fr 1fr; align-items:center; gap:clamp(32px,5vw,92px); }
+.su-split--img-left .su-split-media{ order:1; }
+.su-split--img-left .su-split-copy{ order:2; }
+.su-split--img-right .su-split-media{ order:2; }
+.su-split--img-right .su-split-copy{ order:1; }
+.su-split-media{ position:relative; }
+.su-split-media::before{
+  content:''; position:absolute; z-index:0; width:70%; height:70%; border:1px solid var(--su-accent-line); pointer-events:none;
+}
+.su-split--img-left .su-split-media::before{ right:-16px; bottom:-16px; }
+.su-split--img-right .su-split-media::before{ left:-16px; bottom:-16px; }
+.su-split-frame{
+  position:relative; z-index:1; border-radius:0; overflow:hidden; aspect-ratio:4/5;
+  background:var(--su-paper-3); box-shadow:0 34px 76px -44px rgba(44,35,30,.5);
+}
+.su-split-imgwrap{ position:absolute; inset:-8% 0; will-change:transform; transform:translateY(var(--su-py)); }
+.su-split:hover .su-split-img{ transform:scale(1.05); filter:grayscale(0) contrast(1); }
+.su-split-tag{
+  position:absolute; z-index:2; top:-16px; display:inline-flex; align-items:center; justify-content:center;
+  min-width:56px; height:56px; padding:0 8px; background:var(--su-accent); color:#fff;
+  font-family:var(--su-display); font-size:22px; font-weight:400; letter-spacing:.02em;
+  box-shadow:0 18px 40px -18px rgba(44,35,30,.4);
+}
+.su-split--img-left .su-split-tag{ right:-14px; }
+.su-split--img-right .su-split-tag{ left:-14px; }
+
+.su-split-copy{ position:relative; min-width:0; padding:clamp(6px,1vw,16px) 0; }
+.su-split-eyebrow{ display:flex; align-items:center; gap:12px; font-family:var(--su-sans); font-size:11px; font-weight:700; letter-spacing:.3em; text-transform:uppercase; color:var(--su-accent); margin-bottom:16px; }
+.su-split-eyebrow-n{ font-family:var(--su-display); font-size:15px; letter-spacing:0; color:var(--su-accent); opacity:.5; }
+.su-split-title{
+  font-family:var(--su-serif); font-size:clamp(28px,3.7vw,46px); font-weight:600; line-height:1.08;
+  color:var(--su-ink); margin:0 0 20px;
+}
+.su-split-body p{
+  font-family:var(--su-sans); font-size:clamp(14.5px,1.5vw,16.5px); font-weight:300; line-height:1.9;
+  color:var(--su-body); margin:0 0 16px; max-width:560px;
+}
+.su-split-body p:last-child{ margin-bottom:0; }
+
+/* checklist */
+.su-checks{ list-style:none; margin:28px 0 0; padding:0; display:flex; flex-direction:column; gap:2px; }
+.su-check{ display:flex; align-items:flex-start; gap:16px; padding:16px 0; border-top:1px solid var(--su-line); }
+.su-check:last-child{ border-bottom:1px solid var(--su-line); }
+.su-check-ic{
+  flex-shrink:0; width:42px; height:42px; border-radius:0; display:inline-flex; align-items:center; justify-content:center;
+  background:var(--su-accent-soft); color:var(--su-accent); border:1px solid var(--su-accent-line);
+}
+.su-check-body{ min-width:0; padding-top:2px; }
+.su-check-t{ display:block; font-family:var(--su-serif); font-size:clamp(16px,1.7vw,19px); font-weight:600; color:var(--su-ink); margin-bottom:3px; }
+.su-check-x{ font-family:var(--su-sans); font-size:13.5px; font-weight:300; line-height:1.65; color:var(--su-body); margin:0; max-width:440px; }
+
+@media(max-width:900px){
+  .su-split{ grid-template-columns:1fr; gap:44px; }
+  .su-split--img-left .su-split-media, .su-split--img-right .su-split-media{ order:1; }
+  .su-split--img-left .su-split-copy, .su-split--img-right .su-split-copy{ order:2; }
+  .su-split-frame{ max-width:480px; margin:0 auto; }
+  .su-split-media::before{ display:none; }
+  .su-split--img-left .su-split-tag, .su-split--img-right .su-split-tag{ right:14px; left:auto; }
+  .su-split-copy{ text-align:center; }
+  .su-split-eyebrow{ justify-content:center; }
+  .su-split-body p{ margin-left:auto; margin-right:auto; }
+  .su-checks{ text-align:left; max-width:440px; margin-left:auto; margin-right:auto; }
+}
+
+/* ══════════ POINTS GRID ══════════ */
+.su-points{ position:relative; display:flex; flex-direction:column; align-items:center; }
+.su-points-num{
+  position:absolute; top:-.42em; left:50%; transform:translateX(-50%); z-index:0; pointer-events:none;
+  font-family:var(--su-display); font-size:clamp(120px,20vw,240px); line-height:1; font-weight:400;
+  color:var(--su-ink); opacity:.06;
+}
+.su-points-head{ position:relative; z-index:1; text-align:center; max-width:760px; margin:0 auto clamp(36px,5vw,56px); display:flex; flex-direction:column; align-items:center; }
+.su-points-title{ font-family:var(--su-serif); font-size:clamp(28px,4.2vw,50px); font-weight:500; line-height:1.06; color:var(--su-ink); margin:0; }
+.su-points-intro{ margin-top:18px; }
+.su-points-intro p{ font-family:var(--su-sans); font-size:clamp(14.5px,1.5vw,16px); font-weight:300; line-height:1.8; color:var(--su-body); margin:0 auto; max-width:600px; }
+.su-cards{ width:100%; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:0; border:1px solid var(--su-line); background:var(--su-line); }
+.su-card{
+  position:relative; background:var(--su-paper); border:0;
+  padding:clamp(26px,2.6vw,38px) clamp(24px,2.3vw,32px);
+  transition:background .35s ease, transform .4s var(--su-e);
+  overflow:hidden;
+}
+.su-card::before{ content:''; position:absolute; left:0; top:0; height:100%; width:3px; background:var(--su-accent); transform:scaleY(0); transform-origin:top; transition:transform .45s var(--su-e); }
+.su-card:hover{ background:var(--su-accent-tint); }
+.su-card:hover::before{ transform:scaleY(1); }
+.su-card-n{ position:absolute; top:clamp(20px,2vw,28px); right:clamp(22px,2.2vw,30px); font-family:var(--su-display); font-size:15px; color:var(--su-accent); opacity:.4; letter-spacing:.02em; }
+.su-card-ic{
+  display:inline-flex; align-items:center; justify-content:center; width:54px; height:54px; border-radius:0;
+  background:var(--su-accent-soft); color:var(--su-accent); border:1px solid var(--su-accent-line); margin-bottom:22px;
+}
+.su-card-t{ font-family:var(--su-serif); font-size:clamp(19px,2vw,23px); font-weight:600; line-height:1.2; color:var(--su-ink); margin:0 0 10px; }
+.su-card-x{ font-family:var(--su-sans); font-size:14px; font-weight:300; line-height:1.75; color:var(--su-body); margin:0; }
+.su-points-cta{ margin-top:clamp(32px,4vw,50px); }
+
+/* ══════════ FULL-BLEED CTA ══════════ */
+.su-cta{ position:relative; overflow:hidden; isolation:isolate; padding:clamp(96px,15vw,190px) clamp(20px,5vw,64px); }
+.su-cta-bg{ position:absolute; inset:0; z-index:-3; }
+.su-cta-bg-img{ width:100%; height:100%; object-fit:cover; object-position:center; transform:scale(1.08); filter:grayscale(1) contrast(1.05); }
+.su-cta-veil{ position:absolute; inset:0; z-index:-2; }
+.su-cta.is-accent .su-cta-veil{ background:linear-gradient(135deg, rgba(44,35,30,.90), rgba(111,90,77,.82) 52%, rgba(28,22,17,.93)); }
+.su-cta.is-dark .su-cta-veil{ background:linear-gradient(135deg, rgba(28,22,17,.94), rgba(44,35,30,.9)); }
+.su-cta-glow{ position:absolute; inset:0; z-index:-1; pointer-events:none;
+  background:radial-gradient(46% 60% at 82% 16%, rgba(196,170,150,.20), transparent 60%),
+             radial-gradient(46% 60% at 10% 96%, rgba(255,255,255,.06), transparent 60%); }
+.su-cta-in{ position:relative; z-index:1; max-width:800px; margin:0 auto; text-align:center; }
+.su-cta-orn{ display:inline-flex; align-items:center; gap:14px; color:rgba(245,240,232,.75); margin-bottom:26px; }
+.su-cta-orn i{ display:block; width:46px; height:1px; background:linear-gradient(90deg, transparent, rgba(245,240,232,.55)); }
+.su-cta-orn i:last-child{ background:linear-gradient(90deg, rgba(245,240,232,.55), transparent); }
+.su-cta-eyebrow{ font-family:var(--su-sans); font-size:11.5px; font-weight:700; letter-spacing:.34em; text-transform:uppercase; color:rgba(245,240,232,.82); margin:0 0 20px; }
+.su-cta-title{ font-family:var(--su-serif); font-size:clamp(38px,6vw,72px); font-weight:500; line-height:1.05; color:#fff; margin:0 0 24px; letter-spacing:.004em; }
+.su-cta-title em{ font-style:italic; color:#efe4d7; }
+.su-cta-sub{ font-family:var(--su-sans); font-size:clamp(15px,1.6vw,17px); font-weight:300; line-height:1.8; color:rgba(255,255,255,.88); max-width:560px; margin:0 auto 42px; }
+.su-cta-actions{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; }
+.su-cta-btn{
+  display:inline-flex; align-items:center; gap:11px; background:#fff; color:var(--su-ink); text-decoration:none;
+  font-family:var(--su-sans); font-size:12.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  padding:18px 42px; border-radius:0; border:1px solid transparent;
+  transition:transform .35s var(--su-e), box-shadow .35s var(--su-e), background .3s ease, color .3s ease;
+  box-shadow:0 20px 46px -18px rgba(0,0,0,.55);
+}
+.su-cta-btn:hover{ transform:translateY(-3px); background:var(--su-accent); color:#fff; box-shadow:0 28px 56px -18px rgba(0,0,0,.6); }
+.su-cta-btn--ghost{ background:transparent; color:#fff; border-color:rgba(255,255,255,.4); box-shadow:none; }
+.su-cta-btn--ghost:hover{ background:rgba(255,255,255,.1); border-color:#fff; color:#fff; }
+.su-arrow{ transition:transform .35s var(--su-e); }
+.su-cta-btn:hover .su-arrow{ transform:translateX(5px); }
+
+@media (prefers-reduced-motion: reduce){
+  .su-page *{ transition-duration:.001ms !important; animation-duration:.001ms !important; }
+  .su-pre{ opacity:1 !important; transform:none !important; }
+  .su-parallax{ transform:none !important; }
+  .su-img{ filter:grayscale(1) contrast(1.03) !important; }
+}
+`

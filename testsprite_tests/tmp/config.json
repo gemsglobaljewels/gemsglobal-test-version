@@ -1,0 +1,24 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000",
+  "loginUser": "hardikkamaliya.dev@gmail.com ",
+  "loginPassword": "hardikkamaliya.dev@gmail.com ",
+  "executionArgs": {
+    "projectName": "jewelry",
+    "projectPath": "d:\\jewelry",
+    "testIds": [
+      "TC001",
+      "TC002",
+      "TC007"
+    ],
+    "additionalInstruction": "Run only these 3 tests as a smaller batch to avoid connection timeouts.",
+    "serverMode": "development",
+    "envs": {
+      "API_KEY": "sk-user-AOULPLnMkHAuZh5MbyJ0ln-i7RR6VOV9-aLkeX6ew6PkUYDVKu7odc5UTE77xJIC_AIuoGv5njPdc06MLBMT3sA0JmuKEmVk9s0viKoPhPFGMP5MV2_4XQZsnVxNyuoE93c"
+    }
+  },
+  "serverPort": 56630,
+  "proxy": "http://0457e918-d622-4416-8587-426cf1342c3a:XbYWuRXjW9dCPBikJOAPayddTtq6Ekc5@tun.testsprite.com:8080"
+}

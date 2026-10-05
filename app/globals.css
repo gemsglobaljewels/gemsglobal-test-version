@@ -1,0 +1,402 @@
+@import "react-day-picker/dist/style.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ════════════════════════════════════════════════
+   DESIGN TOKENS
+   Edit here — changes propagate across the site
+   ════════════════════════════════════════════════ */
+:root {
+
+  /* ── Fonts ──────────────────────────────────── */
+  --font-main: var(--font-bodoni), serif;
+  --font-playfair: var(--font-cormorant);
+  --font-montserrat: var(--font-dmsans);
+  --font-jost: var(--font-dmsans);
+
+  /* ══════════════════════════════════════════════
+     BRAND COLORS
+     ══════════════════════════════════════════════ */
+
+  /* 1. Background — warm ivory */
+  --c-bg: #FAF9F6;
+  --c-bg-rgb: 250, 249, 246;
+
+  /* 2. Accent — buttons, ornaments, highlights */
+  --c-accent: #8F7A70;
+  --c-accent-rgb: 143, 122, 112;
+
+  /* 3. Off/Muted — cool grey */
+  --c-off: #C5C6C7;
+  --c-off-rgb: 197, 198, 199;
+
+  /* ── Derived ────────────────────────────────── */
+  --c-text: #2C231E;
+  --c-text-rgb: 44, 35, 30;
+  /* dark warm brown for readability */
+  --c-text-muted: var(--c-accent);
+  --c-text-faint: var(--c-off);
+  --c-surface: #F2EDE8;
+  --c-border: var(--c-off);
+
+  /* ── Dark Section Accent (mirrors --c-accent) ── */
+  --lux-gold: #8F7A70;
+  --lux-gold-rgb: 143, 122, 112;
+  --lux-gold-faded: rgba(143, 122, 112, 0.12);
+  --lux-cream: #F5F0E8;
+  --lux-cream-rgb: 245, 240, 232;
+  --lux-dark-pure: #080604;
+
+  /* ── Feedback & Utilities ────────────────────── */
+  --c-error: #B94040;
+  --shadow-sm: 0 1px 3px rgba(44, 35, 30, 0.07);
+  --shadow-md: 0 4px 16px rgba(44, 35, 30, 0.09);
+  --radius: 0.3rem;
+
+  /* ── Shadcn/UI Mappings ──────────────────────── */
+  --background: 36 20% 97%;
+  /* #FAF9F6 */
+  --foreground: 18 20% 15%;
+  /* #2C231E */
+  --primary: 15 12% 50%;
+  /* #8F7A70 */
+  --primary-foreground: 36 20% 97%;
+  --muted: 0 0% 77%;
+  /* #C5C6C7 */
+  --muted-foreground: 0 0% 45%;
+  --accent: 15 12% 50%;
+  --accent-foreground: 36 20% 97%;
+  --border: 0 0% 77%;
+  --input: 0 0% 77%;
+  --ring: 15 12% 50%;
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--c-bg);
+  color: var(--c-text);
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-main);
+  font-weight: 600;
+}
+
+/* ════════════════════════════════════════════════
+   FONT UTILITIES
+   ════════════════════════════════════════════════ */
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+.font-main {
+  font-family: var(--font-main);
+}
+
+.font-dm {
+  font-family: var(--font-dm);
+}
+
+.font-bodoni {
+  font-family: var(--font-bodoni);
+}
+
+/* ════════════════════════════════════════════════
+   TAILWIND LAYERS
+   ════════════════════════════════════════════════ */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ════════════════════════════════════════════════
+   SELECTION
+   ════════════════════════════════════════════════ */
+::selection {
+  background: var(--c-accent);
+  color: var(--c-bg);
+}
+
+/* ════════════════════════════════════════════════
+   TYPOGRAPHY FIXES
+   ════════════════════════════════════════════════ */
+em,
+i,
+.italic {
+  /* Prevents italic letters from clipping off at the edges */
+  padding-right: 0.15em;
+}
+
+/* ════════════════════════════════════════════════
+   PREMIUM BUTTON SYSTEM (Left-to-Right Hover)
+   ════════════════════════════════════════════════ */
+.btn-lux-fill {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-main);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 14px 28px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: color 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), border-color 0.4s ease, box-shadow 0.4s ease;
+  z-index: 1;
+  text-decoration: none;
+}
+
+.btn-lux-fill * {
+  position: relative;
+  z-index: 1;
+}
+
+.btn-lux-fill::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  z-index: -1;
+}
+
+.btn-lux-fill:hover::before {
+  transform: scaleX(1);
+}
+
+/* Solid Variant */
+.btn-lux-fill.btn-solid {
+  background: var(--c-accent);
+  /* Luxury Taupe */
+  color: #ffffff;
+  border: 1px solid var(--c-accent);
+}
+
+.btn-lux-fill.btn-solid::before {
+  background: var(--c-text);
+  /* Charcoal */
+}
+
+.btn-lux-fill.btn-solid:hover {
+  color: #ffffff;
+  border-color: var(--c-text);
+  box-shadow: 0 4px 16px rgba(44, 35, 30, 0.15);
+}
+
+/* Outline Variant */
+.btn-lux-fill.btn-outline {
+  background: transparent;
+  color: var(--c-accent);
+  border: 1px solid rgba(143, 122, 112, 0.4);
+}
+
+.btn-lux-fill.btn-outline::before {
+  background: var(--c-accent);
+}
+
+.btn-lux-fill.btn-outline:hover {
+  color: #ffffff;
+  border-color: var(--c-accent);
+  box-shadow: 0 4px 16px rgba(143, 122, 112, 0.15);
+}
+
+/* Compact Card Variant of Left-to-Right Hover Buttons */
+.btn-card-fill {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding: 9px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), border-color 0.4s ease, box-shadow 0.4s ease;
+  z-index: 1;
+  white-space: nowrap;
+  background: transparent;
+}
+
+.btn-card-fill * {
+  position: relative;
+  z-index: 1;
+}
+
+.btn-card-fill::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  z-index: -1;
+}
+
+.btn-card-fill:hover::before {
+  transform: scaleX(1);
+}
+
+/* Solid Variant */
+.btn-card-fill.btn-solid {
+  background: var(--c-accent);
+  color: #ffffff;
+  border: 1px solid var(--c-accent);
+}
+
+.btn-card-fill.btn-solid::before {
+  background: var(--c-text);
+}
+
+.btn-card-fill.btn-solid:hover {
+  color: #ffffff;
+  border-color: var(--c-text);
+  box-shadow: 0 4px 12px rgba(44, 35, 30, 0.12);
+}
+
+/* Outline Variant */
+.btn-card-fill.btn-outline {
+  background: transparent;
+  color: var(--c-text);
+  border: 1px solid rgba(143, 122, 112, 0.35);
+}
+
+.btn-card-fill.btn-outline::before {
+  background: var(--c-accent);
+}
+
+.btn-card-fill.btn-outline:hover {
+  color: #ffffff;
+  border-color: var(--c-accent);
+  box-shadow: 0 4px 12px rgba(143, 122, 112, 0.08);
+}
+
+/* ─── Premium Staggered Animations ─── */
+@keyframes premiumFadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-premium-fade-in-up {
+  animation: premiumFadeInUp 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+/* ════════════════════════════════════════════════
+   RICH TEXT CONTENT STYLING
+   ════════════════════════════════════════════════ */
+.rte-content ul {
+  list-style-type: disc !important;
+  padding-left: 1.5rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.rte-content ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.rte-content li {
+  margin-bottom: 0.25rem !important;
+}
+
+.rte-content b,
+.rte-content strong {
+  font-weight: bold !important;
+}
+
+.rte-content i,
+.rte-content em {
+  font-style: italic !important;
+}
+
+.rte-content u {
+  text-decoration: underline !important;
+}
+
+.rte-content strike,
+.rte-content s,
+.rte-content del {
+  text-decoration: line-through !important;
+}
+
+.rte-content p {
+  margin-bottom: 0.75rem !important;
+}
+
+.rte-content h1 {
+  font-size: 1.8rem !important;
+  font-weight: bold !important;
+  margin-top: 1rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.rte-content h2 {
+  font-size: 1.5rem !important;
+  font-weight: bold !important;
+  margin-top: 0.8rem !important;
+  margin-bottom: 0.4rem !important;
+}
+
+.rte-content h3 {
+  font-size: 1.25rem !important;
+  font-weight: bold !important;
+  margin-top: 0.6rem !important;
+  margin-bottom: 0.3rem !important;
+}
+
+.rte-content font[size="2"] {
+  font-size: 0.85rem !important;
+}
+
+.rte-content font[size="5"] {
+  font-size: 1.35rem !important;
+}
+
+.rte-content font[size="3"] {
+  font-size: 1rem !important;
+}

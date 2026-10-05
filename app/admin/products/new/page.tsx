@@ -1,0 +1,1653 @@
+"use client";
+
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, AlertCircle, X, Plus, Upload, Video, Diamond, Check, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useToast } from "@/hooks/use-toast";
+import RichTextEditor from "@/components/RichTextEditor";
+import { resolveAdminFxRate } from "@/lib/adminRate";
+
+interface CustomOptionItem {
+  key: string;
+  name: string;
+  price_modifier: number;
+  is_enabled?: boolean;
+}
+
+interface CustomOptionSection {
+  id: string;
+  title: string;
+  items: CustomOptionItem[];
+}
+
+const DIAMOND_CUTS = ['Good', 'Very Good', 'Excellent', 'Ideal', '8X']
+const DIAMOND_COLORS = ['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
+const DIAMOND_CLARITIES = ['FL', 'IF', 'VVS1', 'VVS2', 'VS1', 'VS2', 'SI1', 'SI2', 'I1']
+const DISCOUNT_PRESETS = [0, 5, 10, 15, 20, 25, 30, 40, 50]
+const LABEL_PRESETS = ['Popular', 'Limited', 'Featured', 'New', 'Best Seller', 'Sale', 'Exclusive']
+
+function isVideo(u: string) {
+  return /\.(mp4|webm|ogg)(\?|$)/i.test(u) || /youtube\.com|youtu\.be|vimeo\.com/i.test(u)
+}
+
+export default function AddProductPage() {
+  const router = useRouter()
+  const { toast } = useToast()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [categories, setCategories] = useState<any[]>([])
+  const [newCategory, setNewCategory] = useState('')
+  const moreFileRef = useRef<HTMLInputElement>(null)
+  const videoFileRef = useRef<HTMLInputElement>(null)
+  const mainFileRef = useRef<HTMLInputElement>(null)
+
+  const [selectedRootCategoryId, setSelectedRootCategoryId] = useState<string>("")
+  const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<string>("")
+
+  const parentCategories = useMemo(() => {
+    return categories.filter(c => !c.parent_category_id)
+  }, [categories])
+
+  const childCategories = useMemo(() => {
+    if (!selectedRootCategoryId) return []
+    return categories.filter(c => c.parent_category_id === selectedRootCategoryId)
+  }, [categories, selectedRootCategoryId])
+
+  // (Removed noisy dev-time console logs for category selection)
+
+  useEffect(() => {
+    const finalCategoryId = selectedSubCategoryId || selectedRootCategoryId;
+    const finalCategoryObj = categories.find(c => c.id === finalCategoryId);
+    const finalCategoryName = finalCategoryObj ? finalCategoryObj.name : '';
+    setFormData(p => {
+      if (p.category === finalCategoryName) return p;
+      return { ...p, category: finalCategoryName };
+    });
+  }, [selectedRootCategoryId, selectedSubCategoryId, categories]);
+
+  const [priceCurrency, setPriceCurrency] = useState<'USD' | 'INR'>('USD')
+  const [fxRate, setFxRate] = useState(83)
+
+  const [formData, setFormData] = useState({
+    name: '', category: '', price: '', description: '',
+    carat: '', color: '', clarity: '', metal: '', style: '',
+    diamond_shape: '', diamond_cut: '', is_featured: false,
+    stock_quantity: 10,
+  })
+  const [discountPercent, setDiscountPercent] = useState(0)
+  const [label, setLabel] = useState('')
+  const [metalOptions, setMetalOptions] = useState<any[]>([])
+  const [selectedMetals, setSelectedMetals] = useState<string[]>([])
+  const [productMetalPrices, setProductMetalPrices] = useState<Record<string, string>>({})
+  const [newMetalName, setNewMetalName] = useState('')
+  const [newMetalPrice, setNewMetalPrice] = useState('0')
+  const [sizeOptions, setSizeOptions] = useState<any[]>([])
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([])
+  const [productSizePrices, setProductSizePrices] = useState<Record<string, string>>({})
+  const [newSizeName, setNewSizeName] = useState('')
+  const [newSizePrice, setNewSizePrice] = useState('0')
+
+  // Carat Options
+  const [caratOptions, setCaratOptions] = useState<any[]>([])
+  const [selectedCarats, setSelectedCarats] = useState<string[]>([])
+  const [productCaratPrices, setProductCaratPrices] = useState<Record<string, string>>({})
+  const [newCaratName, setNewCaratName] = useState('')
+  const [newCaratPrice, setNewCaratPrice] = useState('0')
+
+  // Combined Metal × Carat view helpers: per-row hide (trash/untick),
+  // search, and show-hidden toggle. Selection itself stays flat
+  // (selectedMetals / selectedCarats) — same model the storefront uses.
+  const [hiddenCombos, setHiddenCombos] = useState<Record<string, boolean>>({})
+  const [comboSearch, setComboSearch] = useState('')
+  const [showHidden, setShowHidden] = useState(false)
+  // Per-row independent selection: one checkbox toggles ONE variant only.
+  // Flat selectedMetals/selectedCarats stay synced as the union (storefront model).
+  const [comboSel, setComboSel] = useState<Record<string, boolean>>({})
+  const recomputeFlat = (sel: Record<string, boolean>, hid: Record<string, boolean>) => {
+    const mSet = new Set<string>();
+    const cSet = new Set<string>();
+    Object.keys(sel).forEach(k => {
+      if (sel[k] && !hid[k]) {
+        const parts = k.split('__');
+        if (parts[0]) mSet.add(parts[0]);
+        if (parts[1]) cSet.add(parts[1]);
+      }
+    });
+    setSelectedMetals(Array.from(mSet));
+    setSelectedCarats(Array.from(cSet));
+  };
+  const toggleCombo = (m: any, c: any, vkey: string, on: boolean) => {
+    const nSel = { ...comboSel };
+    const nHid = { ...hiddenCombos };
+    if (on) {
+      nSel[vkey] = true;
+      delete nHid[vkey];
+      if (selectedMetals.indexOf(m.key) === -1) setSelectedMetals([...selectedMetals, m.key]);
+      if (selectedCarats.indexOf(c.key) === -1) setSelectedCarats([...selectedCarats, c.key]);
+      if (!productMetalPrices[m.key]) {
+        const g = priceCurrency === 'USD' ? m.price_modifier : (m.price_modifier || 0) * fxRate;
+        setProductMetalPrices(pm => ({ ...pm, [m.key]: String(g || 0) }));
+      }
+      if (!productCaratPrices[c.key]) {
+        const g = priceCurrency === 'USD' ? c.price_modifier : (c.price_modifier || 0) * fxRate;
+        setProductCaratPrices(pc => ({ ...pc, [c.key]: String(g || 0) }));
+      }
+    } else {
+      delete nSel[vkey];
+      nHid[vkey] = true;
+    }
+    setComboSel(nSel);
+    setHiddenCombos(nHid);
+    recomputeFlat(nSel, nHid);
+  };
+  const hideCombo = (vkey: string) => {
+    const nSel = { ...comboSel };
+    const nHid = { ...hiddenCombos };
+    delete nSel[vkey];
+    nHid[vkey] = true;
+    setComboSel(nSel);
+    setHiddenCombos(nHid);
+    recomputeFlat(nSel, nHid);
+  };
+  // Per-row variant rates (independent per Metal x Carat combo), display-currency strings.
+  const [variantOverrides, setVariantOverrides] = useState<Record<string, string>>({})
+  // False until migration 116_product_variant_prices.sql has run (then per-row rates persist).
+  const [variantSupported, setVariantSupported] = useState(true)
+
+  // Dynamic Custom Option / Spec Sections
+  const [customSections, setCustomSections] = useState<CustomOptionSection[]>([])
+  const [newSectionTitle, setNewSectionTitle] = useState('')
+  const [newItemNames, setNewItemNames] = useState<Record<string, string>>({})
+  const [newItemPrices, setNewItemPrices] = useState<Record<string, string>>({})
+
+  const [images, setImages] = useState<string[]>([])
+  const [mainImage, setMainImage] = useState<string | null>(null)
+  const [mainImgUrl, setMainImgUrl] = useState('')
+  const [moreImgUrl, setMoreImgUrl] = useState('')
+  const [videoUrl, setVideoUrl] = useState('')
+  const [videoUploading, setVideoUploading] = useState(false)
+  const [model3d, setModel3d] = useState<string | null>(null)
+  const [model3dUploading, setModel3dUploading] = useState(false)
+  const [ringStyles, setRingStyles] = useState<{ key: string; name: string; is_enabled?: boolean }[]>([])
+  const [newStyleName, setNewStyleName] = useState('')
+  const [diamondShapes, setDiamondShapes] = useState<{ key: string; name: string; is_enabled?: boolean; model_3d?: string }[]>([])
+  const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error' | 'none', msg: string }>({ type: 'none', msg: '' })
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const c = localStorage.getItem('admin_currency_pref') as 'USD' | 'INR'
+      if (c) setPriceCurrency(c)
+    }
+    // Server is the single source of truth (fixed admin rate, else live).
+    resolveAdminFxRate().then((r) => setFxRate(r))
+    loadCategories(); loadStyles(); loadDiamondShapes(); loadMetalOptions(); loadSizeOptions(); loadCaratOptions()
+  }, [])
+
+  const showStatus = (type: 'success' | 'error', msg: string) => {
+    setUploadStatus({ type, msg });
+    setTimeout(() => setUploadStatus({ type: 'none', msg: '' }), 5000);
+  }
+
+  const loadCategories = async () => {
+    try {
+      const data = await fetch('/api/categories').then(r => r.json())
+      setCategories(data)
+      if (data.length > 0) {
+        const firstParent = data.find((c: any) => !c.parent_category_id)
+        if (firstParent) {
+          setSelectedRootCategoryId(firstParent.id)
+          setSelectedSubCategoryId("")
+        }
+      }
+    } catch { setCategories([]) }
+  }
+  const loadStyles = async () => {
+    try {
+      const j = await fetch('/api/styles', { cache: "no-store" }).then(r => r.json())
+      setRingStyles((Array.isArray(j) ? j : []).filter((x: any) => x.is_enabled !== false))
+    } catch { setRingStyles([]) }
+  }
+  const loadDiamondShapes = async () => {
+    try {
+      const j = await fetch('/api/diamond-shapes', { cache: "no-store" }).then(r => r.json())
+      setDiamondShapes((Array.isArray(j) ? j : []).filter((x: any) => x.is_enabled !== false))
+    } catch { setDiamondShapes([]) }
+  }
+  const loadMetalOptions = async () => {
+    try {
+      const j = await fetch('/api/metal-options', { cache: "no-store" }).then(r => r.json())
+      setMetalOptions(Array.isArray(j) ? j : [])
+    } catch { setMetalOptions([]) }
+  }
+  const loadSizeOptions = async () => {
+    try {
+      const j = await fetch('/api/size-options', { cache: "no-store" }).then(r => r.json())
+      setSizeOptions(Array.isArray(j) ? j : [])
+    } catch { setSizeOptions([]) }
+  }
+  const loadCaratOptions = async () => {
+    try {
+      const j = await fetch('/api/carat-options', { cache: "no-store" }).then(r => r.json())
+      setCaratOptions(Array.isArray(j) ? j : [])
+    } catch { setCaratOptions([]) }
+  }
+
+  const addNewCaratOption = async () => {
+    const name = newCaratName.trim(); if (!name) return
+    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    const pm = parseFloat(newCaratPrice) || 0
+    const priceMod = priceCurrency === 'USD' ? pm : Math.round((pm / fxRate) * 100) / 100
+    try {
+      setLoading(true)
+      const r = await fetch('/api/carat-options', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [{ key, name, price_modifier: priceMod, is_enabled: true, position: caratOptions.length }]
+        }),
+      })
+      if (r.ok) {
+        const resLoad = await fetch('/api/carat-options', { cache: 'no-store' })
+        if (resLoad.ok) {
+          const list = await resLoad.json()
+          setCaratOptions(Array.isArray(list) ? list : [])
+        }
+        setSelectedCarats(prev => [...prev, key])
+        setProductCaratPrices(prev => ({ ...prev, [key]: newCaratPrice }))
+        setNewCaratName('')
+        setNewCaratPrice('0')
+        showStatus('success', 'New carat option added successfully');
+      } else {
+        setError('Failed to add new carat option');
+      }
+    } catch {
+      setError('Failed to add new carat option');
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const deleteGlobalCaratOption = async (key: string) => {
+    if (!confirm(`Delete carat option "${key}" globally? This cannot be undone.`)) return
+    try {
+      setLoading(true)
+      const r = await fetch(`/api/carat-options?key=${encodeURIComponent(key)}`, { method: 'DELETE' })
+      if (r.ok) {
+        setCaratOptions(prev => prev.filter(o => o.key !== key))
+        setSelectedCarats(prev => prev.filter(k => k !== key))
+        setProductCaratPrices(prev => {
+          const next = { ...prev }
+          delete next[key]
+          return next
+        })
+        setHiddenCombos(prev => {
+          const next = { ...prev }
+          Object.keys(next).forEach(k => {
+            if (k === key || k.endsWith('__' + key)) delete next[k]
+          })
+          return next
+        })
+        setVariantOverrides(prev => {
+          const next = { ...prev }
+          Object.keys(next).forEach(k => {
+            if (k === key || k.endsWith('__' + key)) delete next[k]
+          })
+          return next
+        })
+        showStatus('success', 'Carat option deleted globally');
+      } else {
+        const data = await r.json().catch(() => ({}))
+        setError(data.error || 'Failed to delete carat option');
+      }
+    } catch {
+      setError('Failed to delete carat option');
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Dynamic Custom Option Sections
+  const addCustomSection = () => {
+    const title = newSectionTitle.trim(); if (!title) return
+    const secId = 'sec-' + Date.now()
+    setCustomSections(prev => [...prev, { id: secId, title, items: [] }])
+    setNewSectionTitle('')
+    showStatus('success', `Added custom section "${title}"`);
+  }
+
+  const removeCustomSection = (secId: string) => {
+    if (!confirm('Remove this custom option section?')) return
+    setCustomSections(prev => prev.filter(s => s.id !== secId))
+  }
+
+  const addCustomOptionItem = (secId: string) => {
+    const name = (newItemNames[secId] || '').trim(); if (!name) return
+    const rawPrice = parseFloat(newItemPrices[secId] || '0') || 0
+    const priceMod = priceCurrency === 'USD' ? rawPrice : Math.round((rawPrice / fxRate) * 100) / 100
+    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
+    setCustomSections(prev => prev.map(sec => {
+      if (sec.id !== secId) return sec
+      const exists = sec.items.some(i => i.key === key)
+      if (exists) return sec
+      return {
+        ...sec,
+        items: [...sec.items, { key, name, price_modifier: priceMod, is_enabled: true }]
+      }
+    }))
+    setNewItemNames(prev => ({ ...prev, [secId]: '' }))
+    setNewItemPrices(prev => ({ ...prev, [secId]: '0' }))
+  }
+
+  const toggleCustomOptionItem = (secId: string, itemKey: string) => {
+    setCustomSections(prev => prev.map(sec => {
+      if (sec.id !== secId) return sec
+      return {
+        ...sec,
+        items: sec.items.map(item => item.key === itemKey ? { ...item, is_enabled: !item.is_enabled } : item)
+      }
+    }))
+  }
+
+  const updateCustomOptionPrice = (secId: string, itemKey: string, priceStr: string) => {
+    const rawPrice = parseFloat(priceStr) || 0
+    const priceMod = priceCurrency === 'USD' ? rawPrice : Math.round((rawPrice / fxRate) * 100) / 100
+    setCustomSections(prev => prev.map(sec => {
+      if (sec.id !== secId) return sec
+      return {
+        ...sec,
+        items: sec.items.map(item => item.key === itemKey ? { ...item, price_modifier: priceMod } : item)
+      }
+    }))
+  }
+
+  const removeCustomOptionItem = (secId: string, itemKey: string) => {
+    setCustomSections(prev => prev.map(sec => {
+      if (sec.id !== secId) return sec
+      return {
+        ...sec,
+        items: sec.items.filter(item => item.key !== itemKey)
+      }
+    }))
+  }
+  const addNewSizeOption = async () => {
+    const name = newSizeName.trim(); if (!name) return
+    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    const pm = parseFloat(newSizePrice) || 0
+    const priceMod = priceCurrency === 'USD' ? pm : Math.round((pm / fxRate) * 100) / 100
+    try {
+      setLoading(true)
+      const r = await fetch('/api/size-options', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [{ key, name, price_modifier: priceMod, is_enabled: true, position: sizeOptions.length }]
+        }),
+      })
+      if (r.ok) {
+        const resLoad = await fetch('/api/size-options', { cache: 'no-store' })
+        if (resLoad.ok) {
+          const list = await resLoad.json()
+          setSizeOptions(Array.isArray(list) ? list : [])
+        }
+        setSelectedSizes(prev => [...prev, key])
+        setProductSizePrices(prev => ({ ...prev, [key]: newSizePrice }))
+        setNewSizeName('')
+        setNewSizePrice('0')
+        showStatus('success', 'New size option added successfully');
+      } else {
+        setError('Failed to add new size option');
+      }
+    } catch {
+      setError('Failed to add new size option');
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const addNewStyle = async () => {
+    const name = newStyleName.trim(); if (!name) return
+    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    try {
+      const r = await fetch('/api/styles', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: [{ key, name, is_enabled: true }] }) })
+      if (r.ok) {
+        const j = await r.json()
+        setRingStyles((Array.isArray(j) ? j : []).filter((x: any) => x.is_enabled !== false))
+        setFormData(p => ({ ...p, style: key })); setNewStyleName('');
+        showStatus('success', 'New style added successfully');
+        return
+      }
+    } catch { }
+    setRingStyles(p => p.find(s => s.key === key) ? p : [...p, { key, name, is_enabled: true }])
+    setFormData(p => ({ ...p, style: key })); setNewStyleName('')
+  }
+
+  const addNewMetalOption = async () => {
+    const name = newMetalName.trim(); if (!name) return
+    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    const pm = parseFloat(newMetalPrice) || 0
+    const priceMod = priceCurrency === 'USD' ? pm : Math.round((pm / fxRate) * 100) / 100
+    try {
+      setLoading(true)
+      const r = await fetch('/api/metal-options', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [{ key, name, price_modifier: priceMod, is_enabled: true, position: metalOptions.length }]
+        }),
+      })
+      if (r.ok) {
+        const resLoad = await fetch('/api/metal-options', { cache: 'no-store' })
+        if (resLoad.ok) {
+          const list = await resLoad.json()
+          setMetalOptions(Array.isArray(list) ? list : [])
+        }
+        setSelectedMetals(prev => [...prev, key])
+        setProductMetalPrices(prev => ({ ...prev, [key]: newMetalPrice }))
+        setNewMetalName('')
+        setNewMetalPrice('0')
+        showStatus('success', 'New metal option added successfully');
+      } else {
+        setError('Failed to add new metal option');
+      }
+    } catch {
+      setError('Failed to add new metal option');
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const deleteGlobalMetalOption = async (key: string) => {
+    if (!confirm(`Delete metal option "${key}" globally? This cannot be undone.`)) return
+    try {
+      setLoading(true)
+      const r = await fetch(`/api/metal-options?key=${encodeURIComponent(key)}`, { method: 'DELETE' })
+      if (r.ok) {
+        setMetalOptions(prev => prev.filter(o => o.key !== key))
+        setSelectedMetals(prev => prev.filter(k => k !== key))
+        setProductMetalPrices(prev => {
+          const next = { ...prev }
+          delete next[key]
+          return next
+        })
+        setHiddenCombos(prev => {
+          const next = { ...prev }
+          Object.keys(next).forEach(k => {
+            if (k === key || k.startsWith(key + '__')) delete next[k]
+          })
+          return next
+        })
+        setVariantOverrides(prev => {
+          const next = { ...prev }
+          Object.keys(next).forEach(k => {
+            if (k === key || k.startsWith(key + '__')) delete next[k]
+          })
+          return next
+        })
+        showStatus('success', 'Metal option deleted globally');
+      } else {
+        const data = await r.json().catch(() => ({}))
+        setError(data.error || 'Failed to delete metal option');
+      }
+    } catch {
+      setError('Failed to delete metal option');
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const deleteGlobalSizeOption = async (key: string) => {
+    if (!confirm(`Delete size option "${key}" globally? This cannot be undone.`)) return
+    try {
+      setLoading(true)
+      const r = await fetch(`/api/size-options?key=${encodeURIComponent(key)}`, { method: 'DELETE' })
+      if (r.ok) {
+        setSizeOptions(prev => prev.filter(o => o.key !== key))
+        setSelectedSizes(prev => prev.filter(k => k !== key))
+        setProductSizePrices(prev => {
+          const next = { ...prev }
+          delete next[key]
+          return next
+        })
+        showStatus('success', 'Size option deleted globally');
+      } else {
+        const data = await r.json().catch(() => ({}))
+        setError(data.error || 'Failed to delete size option');
+      }
+    } catch {
+      setError('Failed to delete size option');
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddCategory = async () => {
+    if (!newCategory.trim()) return
+    try {
+      const res = await fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newCategory.trim() }) })
+      if (res.ok) {
+        const created = await res.json()
+        const updated = [...categories, created].sort((a, b) => a.name.localeCompare(b.name))
+        setCategories(updated)
+        setSelectedRootCategoryId(created.id)
+        setSelectedSubCategoryId("")
+        setNewCategory('')
+        showStatus('success', 'New category added');
+      }
+    } catch { }
+  }
+
+  // Upload a 3D model for THIS product. No diamond-shape / category
+  // restriction — any product can optionally carry its own model_3d.
+  async function uploadModel3d(file: File | null) {
+    if (!file) return
+    // Web viewer (<model-viewer>) only renders GLB/GLTF; USDZ/OBJ/FBX show blank.
+    if (!/\.(glb|gltf)$/i.test(file.name)) {
+      showStatus('error', 'Only .glb / .gltf files work in the web 3D viewer. Please convert your model to GLB.');
+      return
+    }
+    try {
+      setModel3dUploading(true);
+      const fd = new FormData(); fd.append('file', file)
+      const r = await fetch('/api/diamond-shapes/upload-3d', { method: 'POST', body: fd })
+      const j = await r.json()
+      if (!r.ok || !j?.url) {
+        showStatus('error', j?.error || '3D upload failed');
+        return
+      }
+      setModel3d(j.url)
+      showStatus('success', '3D model uploaded successfully');
+    } catch (err) {
+      showStatus('error', '3D upload failed - check connection');
+    } finally {
+      setModel3dUploading(false);
+    }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setFormData(p => ({ ...p, [e.target.name]: e.target.value }))
+
+  // Switching display currency converts EVERY visible price so the underlying
+  // USD value stays exactly the same (1532.4 USD -> ~144965 INR, not 1532.4 INR).
+  const switchCurrency = (next: 'USD' | 'INR') => {
+    if (next === priceCurrency) return
+    const rate = Number(fxRate)
+    if (isFinite(rate) && rate > 0) {
+      const f = next === 'INR' ? rate : 1 / rate
+      const conv = (s: string) => {
+        const n = parseFloat(s)
+        if (!isFinite(n)) return s
+        return String(Math.round(n * f * 100) / 100)
+      }
+      const convMap = (prev: Record<string, string>) => {
+        const out: Record<string, string> = {}
+        Object.keys(prev).forEach(k => { out[k] = conv(prev[k]) })
+        return out
+      }
+      setFormData(p => ({ ...p, price: conv(p.price) }))
+      setProductMetalPrices(convMap)
+      setProductCaratPrices(convMap)
+      setProductSizePrices(convMap)
+      setVariantOverrides(convMap)
+      setNewMetalPrice(v => conv(v))
+      setNewSizePrice(v => conv(v))
+      setNewCaratPrice(v => conv(v))
+      setNewItemPrices(convMap)
+    }
+    setPriceCurrency(next)
+    try { localStorage.setItem('admin_currency_pref', next) } catch { }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(''); setLoading(true)
+    // Retail price is optional when variants are offered — each variant row
+    // carries its own price and the base is stored as 0.
+    const hasOfferedVariants = selectedMetals.length > 0 || selectedCarats.length > 0
+    if (!formData.name || !formData.category || (!formData.price && !hasOfferedVariants)) {
+      setError(hasOfferedVariants
+        ? 'Please fill in required fields: Name and Category. (Retail price is optional when variants are offered.)'
+        : 'Please fill in required fields: Name, Price, and Category.');
+      setLoading(false);
+      return;
+    }
+
+    const toSlug = (s: string) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    let slug = toSlug(formData.name) || String(Date.now())
+
+    try {
+      const raw = parseFloat(formData.price)
+      if (formData.price !== '' && isNaN(raw)) {
+        setError('Invalid price format.');
+        setLoading(false);
+        return;
+      }
+
+      const priceUSD = isNaN(raw) ? 0 : (priceCurrency === 'USD' ? raw : Math.round((raw / fxRate) * 100) / 100)
+      const catNorm = String(formData.category || '').toLowerCase()
+      const styleFinal = catNorm.startsWith('diamond') ? (formData.diamond_shape || formData.style) : formData.style
+
+      let finalMetals = selectedMetals;
+      let finalCarats = selectedCarats;
+      // Flat lists are kept as the union of ticked rows (recomputeFlat), so no
+      // extra filtering is needed here.
+
+      // Per-row variant rates (USD). Each row owns its rate; untouched rows
+      // fall back to their shared metal+carat sum.
+      const toUSD = (disp: string) => {
+        const n = parseFloat(disp) || 0
+        return priceCurrency === 'USD' ? n : Math.round((n / fxRate) * 100) / 100
+      }
+      const optUsd = (o: any, store: Record<string, string>) => {
+        const disp = store[o.key] ?? String((priceCurrency === 'USD' ? o.price_modifier : (o.price_modifier || 0) * fxRate) || 0)
+        const n = toUSD(disp)
+        return isNaN(n) ? 0 : n
+      }
+      const metalByKey: Record<string, any> = {}
+      metalOptions.forEach(o => { metalByKey[o.key] = o })
+      const caratByKey: Record<string, any> = {}
+      caratOptions.forEach(o => { caratByKey[o.key] = o })
+      const variantRows: Array<{ metal_key: string; carat_key: string; price_modifier: number }> = []
+      // Only ticked (offered) combos are saved — one row ticked = one variant saved.
+      Object.keys(comboSel).forEach(vkey => {
+        if (!comboSel[vkey] || hiddenCombos[vkey]) return
+        const parts = vkey.split('__')
+        const mk = parts[0]
+        const ck = parts[1]
+        if (!mk || !ck || !finalMetals.includes(mk) || !finalCarats.includes(ck)) return
+        const m = metalByKey[mk]
+        const c = caratByKey[ck]
+        if (!m || !c) return
+        const disp = variantOverrides[vkey]
+        const usd = disp !== undefined
+          ? toUSD(disp)
+          : Math.round((optUsd(m, productMetalPrices) + optUsd(c, productCaratPrices)) * 100) / 100
+        variantRows.push({ metal_key: mk, carat_key: ck, price_modifier: isNaN(usd) ? 0 : usd })
+      })
+      const touchedVariants = Object.keys(variantOverrides).length > 0
+
+      const payload = {
+        ...formData,
+        category: formData.category,
+        category_id: selectedSubCategoryId || selectedRootCategoryId || null,
+        style: styleFinal,
+        slug,
+        price: priceUSD,
+        discount_percent: discountPercent,
+        label: label.trim(),
+        model_3d: model3d,
+        image: mainImage || images[0] || null,
+        images: mainImage ? [mainImage, ...images.filter(u => u !== mainImage)] : images,
+        metal_options: metalOptions
+          .filter(o => o.is_enabled !== false && finalMetals.includes(o.key))
+          .map(o => {
+            const rawMod = parseFloat(productMetalPrices[o.key] || '0')
+            const modUSD = priceCurrency === 'USD' ? rawMod : Math.round((rawMod / fxRate) * 100) / 100
+            return {
+              key: o.key,
+              name: o.name,
+              price_modifier: isNaN(modUSD) ? 0 : modUSD
+            }
+          }),
+        size_options: sizeOptions
+          .filter(o => o.is_enabled !== false && selectedSizes.includes(o.key))
+          .map(o => {
+            const rawMod = parseFloat(productSizePrices[o.key] || '0')
+            const modUSD = priceCurrency === 'USD' ? rawMod : Math.round((rawMod / fxRate) * 100) / 100
+            return {
+              key: o.key,
+              name: o.name,
+              price_modifier: isNaN(modUSD) ? 0 : modUSD
+            }
+          }),
+        carat_options: caratOptions
+          .filter(o => o.is_enabled !== false && finalCarats.includes(o.key))
+          .map(o => {
+            const rawMod = parseFloat(productCaratPrices[o.key] || '0')
+            const modUSD = priceCurrency === 'USD' ? rawMod : Math.round((rawMod / fxRate) * 100) / 100
+            return {
+              key: o.key,
+              name: o.name,
+              price_modifier: isNaN(modUSD) ? 0 : modUSD
+            }
+          }),
+        custom_options: customSections.map(sec => ({
+          title: sec.title,
+          items: sec.items.filter(i => i.is_enabled !== false)
+        })),
+        variant_prices: variantRows
+      };
+
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      const createdBody: any = await res.json().catch(() => ({}));
+      if (res.ok) {
+        if (createdBody.variant_saved === false && touchedVariants) {
+          toast({ title: 'Migration needed', description: 'Product created, but per-row rates were NOT saved — run migration 116_product_variant_prices.sql, then set rates on the Edit page.' });
+          router.push(`/admin/products/${createdBody.id}/edit`);
+        } else {
+          toast({ title: 'Creation Successful', description: 'Your masterpiece has been added to the vault.' });
+          router.push('/admin/products');
+        }
+      } else {
+        setError(createdBody.error || 'Failed to create product.');
+      }
+    } catch (err) {
+      setError('A network error occurred.');
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleMainFile = async (file: File | null) => {
+    if (!file) return;
+    try {
+      setLoading(true);
+      const fd = new FormData(); fd.append('file', file)
+      const res = await fetch('/api/storage/upload-product-image', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) { showStatus('error', data?.error || 'Main image upload failed'); return }
+      setMainImage(data.url);
+      setImages(p => p.filter(u => u !== data.url));
+      showStatus('success', 'Main image uploaded successfully');
+    } catch {
+      showStatus('error', 'Upload failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+  const handleMoreFiles = async (files: FileList | null) => {
+    if (!files) return;
+    let count = 0;
+    for (const file of Array.from(files)) {
+      try {
+        const fd = new FormData(); fd.append('file', file)
+        const res = await fetch('/api/storage/upload-product-image', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (res.ok) {
+          setImages(p => [...p, data.url]);
+          count++;
+        }
+      } catch { }
+    }
+    if (count > 0) showStatus('success', `${count} additional images uploaded`);
+  }
+  const handleAddMoreUrl = async () => {
+    const url = moreImgUrl.trim(); if (!url) return;
+    try {
+      setLoading(true);
+      const res = await fetch('/api/storage/upload-product-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
+      const data = await res.json()
+      if (!res.ok) { showStatus('error', 'Failed to import from URL'); return }
+      setImages(p => [...p, data.url]); setMoreImgUrl('');
+      showStatus('success', 'Image imported from URL');
+    } finally {
+      setLoading(false);
+    }
+  }
+  const handleVideoFile = async (file: File | null) => {
+    if (!file) return; setVideoUploading(true)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const res = await fetch('/api/storage/upload-product-image', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) { showStatus('error', 'Video upload failed'); return }
+      setImages(p => [...p, data.url]);
+      showStatus('success', 'Video uploaded successfully');
+    } catch { showStatus('error', 'Video upload failed — file may be too large') }
+    finally { setVideoUploading(false) }
+  }
+  const handleAddVideoUrl = () => {
+    const url = videoUrl.trim(); if (!url) return
+    setImages(p => [...p, url]); setVideoUrl('');
+    showStatus('success', 'Video link added');
+  }
+  const removeImage = (idx: number) => setImages(p => p.filter((_, i) => i !== idx))
+
+  const isDia = (v: string) => String(v || '').toLowerCase().startsWith('diamond')
+
+  const pricePreviewUSD = (() => {
+    const raw = parseFloat(formData.price)
+    if (!isFinite(raw)) return '0.00'
+    return priceCurrency === 'USD' ? raw.toFixed(2) : (Math.round((raw / fxRate) * 100) / 100).toFixed(2)
+  })()
+
+  return (
+    <div className="a-page">
+      <style>{`
+        .np-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 14px; margin-top: 24px; }
+        .np-media-item {
+          aspect-ratio: 1; border: 1px solid var(--c-border); border-radius: var(--radius);
+          position: relative; background: var(--c-surface); overflow: hidden;
+        }
+        .np-media-item img, .np-media-item video { width: 100%; height: 100%; object-fit: cover; }
+        .np-media-item--primary { border: 2px solid var(--c-accent); }
+        .np-media-remove {
+          position: absolute; top: 6px; right: 6px; width: 24px; height: 24px;
+          background: rgba(44,35,30,0.55); color: #fff; border: none; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center; cursor: pointer;
+          transition: background .2s ease;
+        }
+        .np-media-remove:hover { background: var(--c-danger); }
+        .np-media-badge {
+          position: absolute; bottom: 0; left: 0; right: 0; background: var(--c-accent); color: #fff;
+          font-size: 8px; font-weight: 600; letter-spacing: .12em; text-align: center; padding: 3px 0;
+          font-family: var(--font-dmsans);
+        }
+        .np-video-thumb { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--c-surface-2); }
+        .np-dropzone {
+          border: 1.5px dashed var(--c-border-strong); border-radius: var(--radius);
+          padding: 32px; text-align: center; background: var(--c-surface); cursor: pointer;
+          transition: .2s ease; color: var(--c-text-muted); font-family: var(--font-dmsans); font-size: 12px;
+          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 140px;
+        }
+        .np-dropzone:hover { border-color: var(--c-accent); background: #fff; }
+        .np-dropzone svg { color: var(--c-accent); }
+        .np-dropzone img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm); }
+        .np-opt-grid { display: grid; grid-template-columns: 2.5fr 2fr 0.8fr 0.5fr; gap: 12px; align-items: center; }
+        .np-opt-head {
+          font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em;
+          color: var(--c-text-muted); font-family: var(--font-dmsans);
+          border-bottom: 1px solid var(--c-border); padding-bottom: 8px;
+        }
+        /* Flat option grid (5 cols) — materials / diamond weights / sizes */
+        .np-mc-grid { display: grid; grid-template-columns: 0.5fr 1.6fr 1.4fr 1.6fr 0.5fr; gap: 12px; align-items: center; }
+        .np-combo-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+        .np-glob-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .np-glob-chip {
+          display: inline-flex; align-items: center; gap: 6px;
+          height: 28px; padding: 0 6px 0 12px;
+          background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 999px;
+          font-family: var(--font-dmsans); font-size: 11px; font-weight: 500; color: var(--c-text);
+        }
+        .np-glob-chip button {
+          display: flex; align-items: center; justify-content: center;
+          width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer;
+          background: transparent; color: var(--c-danger);
+        }
+        .np-glob-chip button:hover { background: var(--c-danger); color: #fff; }
+        .np-mc-head {
+          font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em;
+          color: var(--c-text-muted); font-family: var(--font-dmsans);
+          border-bottom: 1px solid var(--c-border); padding: 0 4px 10px;
+        }
+        .np-mc-head {
+          font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em;
+          color: var(--c-text-muted); font-family: var(--font-dmsans);
+          border-bottom: 1px solid var(--c-border); padding: 0 4px 10px;
+        }
+        .np-mc-row { padding: 6px 4px; border-bottom: 1px dashed rgba(0,0,0,0.06); }
+        .np-mc-row:hover { background: rgba(140,116,86,0.04); border-radius: 6px; }
+        .np-mc-cell { font-family: var(--font-dmsans); font-size: 13px; font-weight: 500; color: var(--c-text); }
+        .np-mc-cell-muted { font-size: 12px; color: var(--c-text-muted); font-weight: 400; }
+        .np-mc-check { display: flex; justify-content: center; }
+        .np-mc-del { display: flex; justify-content: center; }
+        .np-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+        .np-chip {
+          height: 34px; padding: 0 14px;
+          background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 999px;
+          font-family: var(--font-dmsans); font-size: 12px; font-weight: 500; color: var(--c-text-muted);
+          cursor: pointer; transition: .2s cubic-bezier(.4,0,.2,1);
+        }
+        .np-chip:hover { border-color: var(--c-accent); color: var(--c-accent); }
+        .np-chip.on { background: var(--c-accent); border-color: var(--c-accent); color: #fff; box-shadow: var(--shadow-sm); }
+      `}</style>
+
+      <Link href="/admin/products" className="a-back">
+        <ArrowLeft size={14} /> Back to Vault
+      </Link>
+
+      <div className="a-head">
+        <div>
+          <span className="a-eyebrow">New Product</span>
+          <h1 className="a-title">Add <em>New Creation</em></h1>
+          <p className="a-subtitle">Design and document your latest masterpiece for the collection.</p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="a-card" style={{ borderColor: 'var(--c-danger)', background: 'var(--c-danger-bg)', marginBottom: 20 }}>
+          <div className="a-row a-row--between" style={{ padding: '14px 18px', color: 'var(--c-danger)' }}>
+            <span className="a-row" style={{ gap: 10 }}>
+              <AlertCircle size={18} />
+              <span>{error}</span>
+            </span>
+            <button type="button" className="a-icon-btn a-icon-btn--sm" onClick={() => setError('')}>
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {uploadStatus.type !== 'none' && (
+        <div
+          className="a-card"
+          style={{
+            marginBottom: 20,
+            borderColor: uploadStatus.type === 'success' ? 'var(--c-success)' : 'var(--c-danger)',
+            background: uploadStatus.type === 'success' ? 'var(--c-success-bg)' : 'var(--c-danger-bg)',
+          }}
+        >
+          <div className="a-row" style={{ gap: 10, padding: '14px 18px', color: uploadStatus.type === 'success' ? 'var(--c-success)' : 'var(--c-danger)' }}>
+            {uploadStatus.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
+            <span>{uploadStatus.msg}</span>
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit}>
+        <div className="a-grid-2">
+
+          {/* ── MAIN CONTENT ── */}
+          <div className="a-stack">
+
+            {/* Section: Basic Identity */}
+            <div className="a-card">
+              <div className="a-card-head">
+                <h2 className="a-card-title">Product <em>Identity</em></h2>
+              </div>
+              <div className="a-card-body">
+                <div className="a-field">
+                  <label className="a-label">Masterpiece Name <span className="a-req">*</span></label>
+                  <input className="a-input" name="name" value={formData.name} onChange={handleChange} placeholder="e.g., Radiant Solitaire Ring" />
+                </div>
+
+                <div className="a-field" style={{ marginTop: 16 }}>
+                  <label className="a-label">Collection / Category <span className="a-req">*</span></label>
+                  <select
+                    className="a-select"
+                    value={selectedRootCategoryId}
+                    onChange={(e) => {
+                      setSelectedRootCategoryId(e.target.value);
+                      setSelectedSubCategoryId("");
+                    }}
+                  >
+                    <option value="">Select Root Category</option>
+                    {parentCategories.map(parent => (
+                      <option key={parent.id} value={parent.id}>
+                        {parent.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {childCategories.length > 0 && (
+                    <div style={{ marginTop: 16 }}>
+                      <label className="a-label">Sub Category</label>
+                      <select
+                        className="a-select"
+                        value={selectedSubCategoryId}
+                        onChange={(e) => setSelectedSubCategoryId(e.target.value)}
+                      >
+                        <option value="">Select Sub Category</option>
+                        {childCategories.map(child => (
+                          <option key={child.id} value={child.id}>
+                            {child.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="a-row" style={{ gap: 8, marginTop: 12 }}>
+                    <input className="a-input" value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="New category..." />
+                    <button type="button" className="a-btn a-btn--subtle" onClick={handleAddCategory}>Add</button>
+                  </div>
+                </div>
+
+                <div className="a-field" style={{ marginTop: 24 }}>
+                  <label className="a-label">Story / Description</label>
+                  <RichTextEditor
+                    value={formData.description}
+                    onChange={(val) => setFormData(p => ({ ...p, description: val }))}
+                    placeholder="The heritage and details of this piece..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section: Pricing & Inventory */}
+            <div className="a-card">
+              <div className="a-card-head">
+                <h2 className="a-card-title">Value & <em>Availability</em></h2>
+              </div>
+              <div className="a-card-body">
+                <div className="a-form-grid a-form-grid--3">
+                  <div className="a-field">
+                    <label className="a-label">Retail Price ({priceCurrency}) {(selectedMetals.length === 0 && selectedCarats.length === 0) && <span className="a-req">*</span>}</label>
+                    <input className="a-input" type="number" name="price" value={formData.price} onChange={handleChange} placeholder="0.00" step="0.01" />
+                    <p className="a-hint">Approx. ${pricePreviewUSD} USD</p>
+                    {(selectedMetals.length > 0 || selectedCarats.length > 0) && (
+                      <p className="a-hint" style={{ marginTop: 4 }}>Optional — variants below carry their own prices; empty is stored as 0 base.</p>
+                    )}
+                  </div>
+                  <div className="a-field">
+                    <label className="a-label">Preferred Currency</label>
+                    <select className="a-select" value={priceCurrency} onChange={e => switchCurrency(e.target.value as 'USD' | 'INR')}>
+                      <option value="USD">USD ($)</option>
+                      <option value="INR">INR (₹)</option>
+                    </select>
+                  </div>
+                  <div className="a-field">
+                    <label className="a-label">Stock Quantity</label>
+                    <input className="a-input" type="number" name="stock_quantity" value={formData.stock_quantity} onChange={handleChange} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section: Discount & Label */}
+            <div className="a-card">
+              <div className="a-card-head">
+                <h2 className="a-card-title">Discount & <em>Label</em></h2>
+                <span className="a-card-sub">Put the piece on sale and tag it for the storefront</span>
+              </div>
+              <div className="a-card-body">
+                <div className="a-field">
+                  <label className="a-label">Discount</label>
+                  <div className="np-chip-row">
+                    {DISCOUNT_PRESETS.map(d => (
+                      <button
+                        type="button"
+                        key={d}
+                        className={`np-chip${discountPercent === d ? ' on' : ''}`}
+                        onClick={() => setDiscountPercent(d)}
+                      >
+                        {d === 0 ? 'None' : `${d}% Off`}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="a-row" style={{ gap: 8, marginTop: 12, alignItems: 'center' }}>
+                    <input
+                      className="a-input"
+                      type="number"
+                      min={0}
+                      max={95}
+                      step={1}
+                      style={{ maxWidth: 160 }}
+                      value={discountPercent ? String(discountPercent) : ''}
+                      onChange={e => {
+                        const n = Math.round(Number(e.target.value))
+                        setDiscountPercent(Number.isFinite(n) ? Math.max(0, Math.min(95, n)) : 0)
+                      }}
+                      placeholder="Custom %"
+                    />
+                    <span className="a-hint" style={{ margin: 0 }}>Any value 0–95%</span>
+                  </div>
+                  {discountPercent > 0 && (() => {
+                    const orig = parseFloat(pricePreviewUSD) || 0
+                    const sale = Math.round(orig * (1 - discountPercent / 100) * 100) / 100
+                    const inr = (usd: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Math.round(usd * fxRate))
+                    return (
+                      <p className="a-hint" style={{ marginTop: 10 }}>
+                        Sale price: <strong style={{ color: 'var(--c-accent)' }}>${sale.toFixed(2)}</strong>{' '}
+                        <span>({inr(sale)})</span>{' '}
+                        <span style={{ textDecoration: 'line-through' }}>${orig.toFixed(2)}</span>{' '}
+                        <span>({inr(orig)})</span>{' '}
+                        · {discountPercent}% off (USD, before metal/size upcharges)
+                      </p>
+                    )
+                  })()}
+                </div>
+
+                <hr className="a-divider" />
+
+                <div className="a-field">
+                  <label className="a-label">Card Label</label>
+                  <div className="np-chip-row">
+                    <button type="button" className={`np-chip${!label ? ' on' : ''}`} onClick={() => setLabel('')}>None</button>
+                    {LABEL_PRESETS.map(l => (
+                      <button
+                        type="button"
+                        key={l}
+                        className={`np-chip${label === l ? ' on' : ''}`}
+                        onClick={() => setLabel(l)}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="a-row" style={{ gap: 8, marginTop: 12 }}>
+                    <input className="a-input" value={label} onChange={e => setLabel(e.target.value)} placeholder="Custom label (e.g., Bestseller)..." />
+                  </div>
+                  <p className="a-hint">Shown as a badge on the product card & product page.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Section: Media Manager */}
+            <div className="a-card">
+              <div className="a-card-head">
+                <h2 className="a-card-title">Media <em>Gallery</em></h2>
+                <span className="a-card-sub">Upload images, videos, and models</span>
+              </div>
+              <div className="a-card-body">
+                <div className="a-form-grid">
+                  <div className="a-field">
+                    <label className="a-label">Primary Portrait</label>
+                    <div className="np-dropzone" onClick={() => mainFileRef.current?.click()}>
+                      <input type="file" ref={mainFileRef} style={{ display: 'none' }} onChange={e => handleMainFile(e.target.files?.[0] || null)} />
+                      {mainImage ? <img src={mainImage} alt="Main" /> : (
+                        <>
+                          <Upload size={30} strokeWidth={1} />
+                          <p>Drop or click to upload main image</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="a-field">
+                    <label className="a-label">Additional Views</label>
+                    <div className="np-dropzone" style={{ minHeight: 96, padding: 18 }} onClick={() => moreFileRef.current?.click()}>
+                      <input type="file" multiple ref={moreFileRef} style={{ display: 'none' }} onChange={e => handleMoreFiles(e.target.files)} />
+                      <Plus size={22} strokeWidth={1} />
+                      <p>Upload more angles</p>
+                    </div>
+                    <div className="a-row" style={{ gap: 8, marginTop: 12 }}>
+                      <input className="a-input" value={moreImgUrl} onChange={e => setMoreImgUrl(e.target.value)} placeholder="Or paste image URL..." />
+                      <button type="button" className="a-btn a-btn--subtle" onClick={handleAddMoreUrl}>Link</button>
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="a-divider" />
+
+                <div className="a-form-grid">
+                  <div className="a-field">
+                    <label className="a-label">Cinematic Video</label>
+                    <button type="button" className="a-btn a-btn--ghost a-btn--block" onClick={() => videoFileRef.current?.click()}>
+                      <input type="file" accept="video/*" ref={videoFileRef} style={{ display: 'none' }} onChange={e => handleVideoFile(e.target.files?.[0] || null)} />
+                      <Video size={16} /> {videoUploading ? 'Uploading...' : 'Upload Video File'}
+                    </button>
+                    <div className="a-row" style={{ gap: 8, marginTop: 12 }}>
+                      <input className="a-input" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="YouTube/Vimeo link..." />
+                      <button type="button" className="a-btn a-btn--subtle" onClick={handleAddVideoUrl}>Add</button>
+                    </div>
+                  </div>
+                  <div className="a-field">
+                    <label className="a-label">3D Interaction (GLB/GLTF)</label>
+                    <button type="button" className="a-btn a-btn--ghost a-btn--block" onClick={() => document.getElementById('3d-up')?.click()}>
+                      <input id="3d-up" type="file" accept=".glb,.gltf" style={{ display: 'none' }} onChange={e => uploadModel3d(e.target.files?.[0] || null)} />
+                      <Diamond size={16} /> {model3dUploading ? 'Uploading…' : model3d ? 'Replace 3D Model' : 'Upload 3D Model'}
+                    </button>
+                    {model3d && (
+                      <div className="a-row a-row--between" style={{ gap: 8, marginTop: 8 }}>
+                        <a href={model3d} target="_blank" rel="noreferrer" className="a-hint" style={{ color: 'var(--c-success)', margin: 0 }}>✓ 3D model attached</a>
+                        <button type="button" className="a-btn a-btn--subtle a-btn--sm" onClick={() => setModel3d(null)}>Remove</button>
+                      </div>
+                    )}
+                    <p className="a-hint">Optional. Works with any product — shown as a rotatable 3D view on the product page.</p>
+                  </div>
+                </div>
+
+                {/* Uploaded List */}
+                {(mainImage || images.length > 0) && (
+                  <div className="np-media-grid">
+                    {mainImage && (
+                      <div className="np-media-item np-media-item--primary">
+                        <img src={mainImage} alt="" />
+                        <button type="button" className="np-media-remove" onClick={() => setMainImage(null)}><X size={12} /></button>
+                        <div className="np-media-badge">PRIMARY</div>
+                      </div>
+                    )}
+                    {images.map((url, i) => (
+                      <div key={i} className="np-media-item">
+                        {isVideo(url) ? (
+                          <div className="np-video-thumb">
+                            <Video size={24} color="var(--c-text-muted)" />
+                          </div>
+                        ) : <img src={url} alt="" />}
+                        <button type="button" className="np-media-remove" onClick={() => removeImage(i)}><X size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Specifications */}
+            <div className="a-card">
+              <div className="a-card-head"><h2 className="a-card-title">Technical <em>Specs</em></h2></div>
+              <div className="a-card-body">
+                {/* Style + Shape are available for every product, not just
+                    rings / diamonds — so any piece can be tagged and filtered. */}
+                <div className="a-field">
+                  <label className="a-label">Style</label>
+                  <div className="a-row" style={{ gap: 12 }}>
+                    <select className="a-select" style={{ flex: 1 }} name="style" value={formData.style} onChange={handleChange}>
+                      <option value="">Select a style</option>
+                      {ringStyles.map(s => <option key={s.key} value={s.key}>{s.name}</option>)}
+                    </select>
+                    <input className="a-input" style={{ flex: 1 }} value={newStyleName} onChange={e => setNewStyleName(e.target.value)} placeholder="Custom style name..." />
+                    <button type="button" className="a-btn a-btn--subtle" onClick={addNewStyle}>Add</button>
+                  </div>
+                </div>
+
+                <div className="a-form-grid">
+                  <div className="a-field">
+                    <label className="a-label">Shape</label>
+                    <select className="a-select" name="diamond_shape" value={formData.diamond_shape} onChange={handleChange}>
+                      <option value="">Select shape</option>
+                      {diamondShapes.map(s => <option key={s.key} value={s.key}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="a-field">
+                    <label className="a-label">Carat Weight</label>
+                    <input className="a-input" name="carat" value={formData.carat} onChange={handleChange} placeholder="e.g., 1.50" />
+                  </div>
+                </div>
+
+                <div className="a-form-grid a-form-grid--3">
+                  <div className="a-field">
+                    <label className="a-label">Cut / Quality</label>
+                    <select className="a-select" name="diamond_cut" value={formData.diamond_cut} onChange={handleChange}>
+                      <option value="">N/A</option>
+                      {DIAMOND_CUTS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="a-field">
+                    <label className="a-label">Color Grade</label>
+                    <select className="a-select" name="color" value={formData.color} onChange={handleChange}>
+                      <option value="">N/A</option>
+                      {DIAMOND_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="a-field">
+                    <label className="a-label">Clarity</label>
+                    <select className="a-select" name="clarity" value={formData.clarity} onChange={handleChange}>
+                      <option value="">N/A</option>
+                      {DIAMOND_CLARITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Combined: Material & Diamond Weight — material + weight together, one row per variant */}
+                <div className="a-field">
+                  <div className="a-section-title" style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Material &amp; Total Diamond Weight</span>
+                    {metalOptions.filter(o => o.is_enabled !== false).length > 0 && caratOptions.filter(o => o.is_enabled !== false).length > 0 && (
+                      <span style={{ fontSize: 11, fontWeight: 400, textTransform: 'none', color: 'var(--c-text-muted)' }}>
+                        {metalOptions.filter(o => o.is_enabled !== false).length * caratOptions.filter(o => o.is_enabled !== false).length} variants
+                      </span>
+                    )}
+                  </div>
+                  <p className="a-hint" style={{ margin: '8px 0 0' }}>Untick/hide removes a row from THIS product only. Trash on a row hides it instantly — Save to apply. To delete a material / weight GLOBALLY (every product), use the global lists below.</p>
+                  {!variantSupported && (
+                    <div style={{ marginTop: 12, padding: '10px 14px', border: '1px solid var(--c-warning)', background: 'var(--c-warning-bg)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-dmsans)', fontSize: 12, color: 'var(--c-warning)' }}>
+                      Per-row rates need DB migration <strong>116_product_variant_prices.sql</strong> (run once in Supabase SQL Editor, folder <span>.\migrations\</span>).
+                      Until then rows show shared metal+weight sums and per-row edits and row selections won&apos;t persist.
+                    </div>
+                  )}
+                  <div className="np-combo-toolbar">
+                    <input
+                      className="a-input"
+                      style={{ flex: '2 1 200px', height: 36 }}
+                      placeholder="Search material or diamond weight…"
+                      value={comboSearch}
+                      onChange={e => setComboSearch(e.target.value)}
+                    />
+                    <label className="a-check" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input type="checkbox" checked={showHidden} onChange={e => setShowHidden(e.target.checked)} />
+                      <span>Show hidden</span>
+                    </label>
+                    <button type="button" className="a-btn a-btn--subtle a-btn--sm" onClick={() => {
+                      setSelectedMetals(metalOptions.filter(o => o.is_enabled !== false).map(o => o.key))
+                      setComboSel(() => { const n: Record<string, boolean> = {}; metalOptions.filter(o => o.is_enabled !== false).forEach(mm => { caratOptions.filter(o => o.is_enabled !== false).forEach(cc => { n[mm.key + '__' + cc.key] = true; }); }); return n; })
+                      setSelectedCarats(caratOptions.filter(o => o.is_enabled !== false).map(o => o.key))
+                      setHiddenCombos({})
+                    }}>
+                      Select all
+                    </button>
+                    <button type="button" className="a-btn a-btn--subtle a-btn--sm" onClick={() => {
+                      setSelectedMetals([])
+                      setComboSel({})
+                      setSelectedCarats([])
+                      setHiddenCombos({})
+                    }}>
+                      Clear all
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+                    <div className="np-mc-grid np-mc-head">
+                      <div style={{ textAlign: 'center' }}>SEL</div>
+                      <div>MATERIAL</div>
+                      <div>DIAMOND WEIGHT</div>
+                      <div>UPCHARGE ({priceCurrency})</div>
+                      <div></div>
+                    </div>
+                    {(() => {
+                      const metList = metalOptions.filter(o => o.is_enabled !== false);
+                      const carList = caratOptions.filter(o => o.is_enabled !== false);
+                      const upPh = (o: any) => ((priceCurrency === 'USD' ? o.price_modifier : (o.price_modifier || 0) * fxRate) || 0).toFixed(2);
+                      if (metList.length === 0 && carList.length === 0) {
+                        return (
+                          <div style={{ padding: 20, textAlign: 'center', color: 'var(--c-text-muted)', fontSize: 12, fontFamily: 'var(--font-dmsans)' }}>
+                            No variants yet. Add options below to get started.
+                          </div>
+                        );
+                      }
+                      const q = comboSearch.trim().toLowerCase();
+                      const hiddenCount = Object.keys(hiddenCombos).filter(k => hiddenCombos[k]).length;
+                      const rows: any[] = [];
+                      metList.forEach((m) => {
+                        carList.forEach((c) => {
+                          const vkey = m.key + '__' + c.key;
+                          const hidden = !!hiddenCombos[vkey];
+                          if (hidden && !showHidden) return;
+                          if (q && (m.name + ' ' + c.name).toLowerCase().indexOf(q) === -1) return;
+                          rows.push({ vkey, m, c, hidden });
+                        });
+                      });
+                      const selCount = rows.filter(r => !!comboSel[r.vkey] && !r.hidden).length;
+                      return (
+                        <>
+                          {rows.map(({ vkey, m, c, hidden }) => {
+                            const mNum = parseFloat(productMetalPrices[m.key] ?? upPh(m)) || 0;
+                            const cNum = parseFloat(productCaratPrices[c.key] ?? upPh(c)) || 0;
+                            const sharedDisp = (mNum + cNum).toFixed(2);
+                            return (
+                              <div key={vkey} className="np-mc-grid np-mc-row" style={hidden ? { opacity: 0.45 } : undefined}>
+                                <div className="np-mc-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!comboSel[vkey]}
+                                    style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--c-accent)' }}
+                                    title={hidden ? 'Hidden row — tick to restore' : 'Tick to offer this combination'}
+                                    onChange={(e) => toggleCombo(m, c, vkey, e.target.checked)}
+                                  />
+                                </div>
+                                <div className="np-mc-cell">{m.name}</div>
+                                <div className="np-mc-cell">{c.name}</div>
+                                <input
+                                  type="number" step="0.01"
+                                  className="a-input"
+                                  style={{ height: 36, width: '100%' }}
+                                  title="This exact variant's upcharge over base price — independent per row"
+                                  placeholder={sharedDisp}
+                                  value={variantOverrides[vkey] ?? sharedDisp}
+                                  onChange={(e) => setVariantOverrides(prev => ({ ...prev, [vkey]: e.target.value }))}
+                                />
+                                <div className="np-mc-del">
+                                  <button
+                                    type="button" className="a-icon-btn a-icon-btn--danger a-icon-btn--sm"
+                                    onClick={() => {
+                                      if (confirm('Hide ' + m.name + ' + ' + c.name + ' for this product? (Save to apply. Use the global lists below to delete permanently.)')) {
+                                        hideCombo(vkey);
+                                      }
+                                    }}
+                                    title="Hide this row for this product (shows again only if its material/weight stays selected — delete globally below for permanent removal)"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <div style={{ padding: '8px 4px', fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'var(--c-text-muted)' }}>
+                            Showing {rows.length} of {metList.length * carList.length} combinations · {selCount} offered · {hiddenCount} hidden.
+                            Unticked / hidden rows are not offered and are not saved — tick a row to offer that exact variant only.
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Global option management — permanent deletion lives here. */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--c-border)' }}>
+                    <div>
+                      <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--c-text-muted)' }}>
+                        Materials — global ({metalOptions.filter(o => o.is_enabled !== false).length})
+                      </span>
+                      <div className="np-glob-chips">
+                        {metalOptions.filter(o => o.is_enabled !== false).map(m => (
+                          <span key={m.key} className="np-glob-chip">
+                            {m.name}
+                            <button type="button" onClick={() => deleteGlobalMetalOption(m.key)} title={`Delete "${m.name}" globally (removes all its rows)`}>
+                              <Trash2 size={12} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--c-text-muted)' }}>
+                        Diamond weights — global ({caratOptions.filter(o => o.is_enabled !== false).length})
+                      </span>
+                      <div className="np-glob-chips">
+                        {caratOptions.filter(o => o.is_enabled !== false).map(c => (
+                          <span key={c.key} className="np-glob-chip">
+                            {c.name}
+                            <button type="button" onClick={() => deleteGlobalCaratOption(c.key)} title={`Delete "${c.name}" globally (removes all its rows)`}>
+                              <Trash2 size={12} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Add new options */}
+                  <div className="a-row" style={{ gap: 12, marginTop: 16, alignItems: 'center', borderTop: '1px dashed var(--c-border)', paddingTop: 16, flexWrap: 'wrap' }}>
+                    <input className="a-input" style={{ flex: '2 1 200px' }} value={newMetalName} onChange={e => setNewMetalName(e.target.value)} placeholder="New material/metal (e.g., 925 Silver+Lab Grown)" />
+                    <input type="number" step="0.01" className="a-input" style={{ flex: '1 1 100px' }} value={newMetalPrice} onChange={e => setNewMetalPrice(e.target.value)} placeholder={`Price (${priceCurrency})`} />
+                    <button type="button" className="a-btn a-btn--subtle" onClick={addNewMetalOption}>
+                      <Plus size={14} />&nbsp;Add Material
+                    </button>
+                  </div>
+                  <div className="a-row" style={{ gap: 12, marginTop: 10, alignItems: 'center', flexWrap: 'wrap', paddingTop: 10, borderTop: '1px dashed rgba(0,0,0,0.06)' }}>
+                    <input className="a-input" style={{ flex: '2 1 200px' }} value={newCaratName} onChange={e => setNewCaratName(e.target.value)} placeholder="New carat weight (e.g., 2.00 TCW)" />
+                    <input type="number" step="0.01" className="a-input" style={{ flex: '1 1 100px' }} value={newCaratPrice} onChange={e => setNewCaratPrice(e.target.value)} placeholder={`Price (${priceCurrency})`} />
+                    <button type="button" className="a-btn a-btn--subtle" onClick={addNewCaratOption}>
+                      <Plus size={14} />&nbsp;Add Carat
+                    </button>
+                  </div>
+                </div>
+                <hr className="a-divider" />
+
+                <div className="a-section-title">Available Size Options</div>
+                <div className="a-field">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div className="np-mc-grid np-mc-head">
+                      <div style={{ textAlign: 'center' }}>SEL</div>
+                      <div>SIZE</div>
+                      <div></div>
+                      <div>UPCHARGE ({priceCurrency})</div>
+                      <div></div>
+                    </div>
+
+                    {sizeOptions.filter((opt) => opt.is_enabled !== false).length === 0 && (
+                      <div style={{ padding: 20, textAlign: 'center', color: 'var(--c-text-muted)', fontSize: 12, fontFamily: 'var(--font-dmsans)' }}>
+                        No size options yet. Add one below.
+                      </div>
+                    )}
+
+                    {sizeOptions.filter((opt) => opt.is_enabled !== false).map((opt) => {
+                      const isSelected = selectedSizes.includes(opt.key);
+                      const currentPriceMod = productSizePrices[opt.key] ?? '';
+                      return (
+                        <div key={opt.key} className="np-mc-grid np-mc-row">
+                          <div className="np-mc-check">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--c-accent)' }}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSizes([...selectedSizes, opt.key])
+                                  if (!productSizePrices[opt.key]) {
+                                    const globalPriceVal = (priceCurrency === 'USD' ? opt.price_modifier : (opt.price_modifier || 0) * fxRate) || 0;
+                                    setProductSizePrices(prev => ({ ...prev, [opt.key]: String(globalPriceVal) }))
+                                  }
+                                } else {
+                                  setSelectedSizes(selectedSizes.filter(k => k !== opt.key))
+                                }
+                              }}
+                            />
+                          </div>
+                          <div className="np-mc-cell">{opt.name}</div>
+                          <div className="np-mc-cell-muted">—</div>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="a-input"
+                            style={{ height: 36, width: '100%' }}
+                            placeholder={((priceCurrency === 'USD' ? opt.price_modifier : (opt.price_modifier || 0) * fxRate) || 0).toFixed(2)}
+                            value={currentPriceMod}
+                            title="Upcharge over base price when a customer picks this size"
+                            onChange={(e) => {
+                              setProductSizePrices(prev => ({ ...prev, [opt.key]: e.target.value }))
+                            }}
+                          />
+                          <div className="np-mc-del">
+                            <button
+                              type="button"
+                              className="a-icon-btn a-icon-btn--danger a-icon-btn--sm"
+                              onClick={() => deleteGlobalSizeOption(opt.key)}
+                              title="Delete option globally"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="a-row" style={{ gap: 12, marginTop: 16, alignItems: 'center', borderTop: '1px dashed var(--c-border)', paddingTop: 16 }}>
+                    <input className="a-input" style={{ flex: 2 }} value={newSizeName} onChange={e => setNewSizeName(e.target.value)} placeholder="New size option (e.g., 8.5)..." />
+                    <input type="number" step="0.01" className="a-input" style={{ flex: 1 }} value={newSizePrice} onChange={e => setNewSizePrice(e.target.value)} placeholder={`Price (${priceCurrency})`} />
+                    <button type="button" className="a-btn a-btn--subtle" onClick={addNewSizeOption}>
+                      <Plus size={14} />&nbsp;Add Size
+                    </button>
+                  </div>
+                </div>
+
+                <hr className="a-divider" />
+
+
+
+                {/* Dynamic Custom Spec / Option Sections Builder */}
+                <div className="a-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Custom Technical Specs &amp; Choice Sections</span>
+                  <span style={{ fontSize: 11, fontWeight: 400, textTransform: 'none', color: 'var(--c-text-muted)' }}>Admin can create any new spec option dynamically</span>
+                </div>
+
+                {customSections.map((sec) => (
+                  <div key={sec.id} style={{ marginBottom: 20, padding: 16, border: '1px solid var(--c-border)', borderRadius: 'var(--radius)', background: 'var(--c-surface)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                      <strong style={{ fontSize: 13, fontFamily: 'var(--font-dmsans)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{sec.title}</strong>
+                      <button type="button" className="a-btn a-btn--danger a-btn--sm" onClick={() => removeCustomSection(sec.id)}>
+                        Remove Section
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {sec.items.map((item) => (
+                        <div key={item.key} className="np-opt-grid">
+                          <span style={{ fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-dmsans)' }}>{item.name}</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="a-input"
+                            value={item.price_modifier}
+                            onChange={(e) => updateCustomOptionPrice(sec.id, item.key, e.target.value)}
+                            placeholder={`Price (${priceCurrency})`}
+                          />
+                          <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <input
+                              type="checkbox"
+                              className="a-check"
+                              checked={!(item.is_enabled === false)}
+                              onChange={() => toggleCustomOptionItem(sec.id, item.key)}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <button type="button" className="a-icon-btn a-icon-btn--danger a-icon-btn--sm" onClick={() => removeCustomOptionItem(sec.id, item.key)}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="a-row" style={{ gap: 10, marginTop: 14, paddingTop: 12, borderTop: '1px dashed var(--c-border)' }}>
+                      <input
+                        className="a-input"
+                        style={{ flex: 2 }}
+                        value={newItemNames[sec.id] || ''}
+                        onChange={(e) => setNewItemNames(prev => ({ ...prev, [sec.id]: e.target.value }))}
+                        placeholder="Option choice name (e.g., 2.0mm / VVS1)..."
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="a-input"
+                        style={{ flex: 1 }}
+                        value={newItemPrices[sec.id] || '0'}
+                        onChange={(e) => setNewItemPrices(prev => ({ ...prev, [sec.id]: e.target.value }))}
+                        placeholder={`Price (${priceCurrency})`}
+                      />
+                      <button type="button" className="a-btn a-btn--subtle" onClick={() => addCustomOptionItem(sec.id)}>
+                        Add Choice
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="a-row" style={{ gap: 10, marginTop: 12 }}>
+                  <input
+                    className="a-input"
+                    style={{ flex: 1 }}
+                    value={newSectionTitle}
+                    onChange={(e) => setNewSectionTitle(e.target.value)}
+                    placeholder="New custom section title (e.g., Clarity Grade, Band Width, Certificate)..."
+                  />
+                  <button type="button" className="a-btn a-btn--primary" onClick={addCustomSection}>
+                    + Add Custom Spec Section
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          {/* ── SIDEBAR ── */}
+          <div>
+            <div style={{ position: 'sticky', top: 24 }} className="a-stack">
+              <div className="a-card">
+                <div className="a-card-head"><h2 className="a-card-title">Publish</h2></div>
+                <div className="a-card-body">
+                  <div className="a-row a-row--between" style={{ gap: 12 }}>
+                    <div>
+                      <label htmlFor="feat_new" className="a-label" style={{ marginBottom: 4 }}>Feature on Homepage</label>
+                      <p className="a-hint" style={{ marginTop: 0 }}>Mark this piece as a spotlight creation.</p>
+                    </div>
+                    <label className="a-switch">
+                      <input id="feat_new" type="checkbox" checked={formData.is_featured} onChange={e => setFormData(p => ({ ...p, is_featured: e.target.checked }))} />
+                      <span className="a-switch-slider" />
+                    </label>
+                  </div>
+                </div>
+                <div className="a-card-foot" style={{ flexDirection: 'column', gap: 12 }}>
+                  <button type="submit" className="a-btn a-btn--primary a-btn--lg a-btn--block" disabled={loading}>
+                    {loading ? 'Curating...' : 'Store Creation'}
+                  </button>
+                  <Link href="/admin/products" className="a-btn a-btn--ghost a-btn--block">Cancel</Link>
+                </div>
+              </div>
+
+              <div className="a-card" style={{ background: 'var(--c-surface)', boxShadow: 'none' }}>
+                <div className="a-card-body" style={{ textAlign: 'center', color: 'var(--c-text-muted)' }}>
+                  <Diamond size={24} strokeWidth={1} style={{ marginBottom: 12, color: 'var(--c-accent)' }} />
+                  <p style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-dmsans)' }}>Gems Global Jewels Admin</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </form>
+    </div>
+  )
+}

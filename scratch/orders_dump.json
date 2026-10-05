@@ -1,0 +1,922 @@
+[
+  {
+    "id": "6f75f2ec-06c6-49b0-b2e3-0014e033a764",
+    "customerName": "gemsglobaljewels@gmail.com",
+    "total": 165022,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-17T10:58:12.744636+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "9ffdb4f9-02d0-4e2a-846e-70067d803e89",
+        "quantity": 1,
+        "price": 152798,
+        "metal": "925 Silver",
+        "size": null,
+        "productName": "Solitaire Marquise With Side Diamond Engagement Ring",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1780911611167-n03hy2xtcy-LR-159_Through_YG.png"
+      }
+    ]
+  },
+  {
+    "id": "0c2fd74f-a1a0-46a0-8bbb-63831bf395ee",
+    "customerName": "gemsglobaljewels@gmail.com",
+    "total": 3488.18,
+    "currency": "USD",
+    "status": "confirmed",
+    "createdAt": "2026-06-17T10:56:05.120012+00:00",
+    "payment_method": "cod",
+    "items": [
+      {
+        "id": "8456edb4-bf81-4c9e-b566-c6780c9febcc",
+        "quantity": 2,
+        "price": 1614.9,
+        "metal": "925 Silver",
+        "size": null,
+        "productName": "Solitaire Marquise With Side Diamond Engagement Ring",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1780911611167-n03hy2xtcy-LR-159_Through_YG.png"
+      }
+    ]
+  },
+  {
+    "id": "092970f7-7fd9-42b1-97ff-d43afe46ef03",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "processing",
+    "createdAt": "2026-06-17T04:28:37.817526+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "be73c59a-192f-4b64-b4e2-66c76685cf93",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "004c1598-e2ba-46bf-ad19-3808d330f38e",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T17:44:09.026784+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "e651d614-8824-4a03-a6e7-aca804cce5b6",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "2f5cdd31-c60b-4e5d-ad9c-b4126951ab36",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T17:43:22.270761+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "1d90aedd-ec8d-49d2-98f1-1f9ad9799ff8",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "a252516e-bb73-4096-9948-4e2c073c0b9e",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T17:41:25.606211+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "ca889307-8d86-4717-9c47-34fd3858d773",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "aaae705e-85e3-4a02-bb17-3d630985997a",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T17:38:52.569577+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "9a7e7600-52d1-42f1-9770-9708d1fcdd81",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "02ecb575-5824-40e8-b421-526ecfb2da1e",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T17:36:45.824733+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "aab72e3f-2bb5-48c3-97f1-9d35096ef864",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "d14ecacf-9c13-48a5-8b29-0cc410a7788e",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T17:35:53.692664+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "3393a860-0e2d-472e-b31f-7a497f4d97e3",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "6da76500-4f8c-4cf2-a8ce-172150848489",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T17:35:32.445092+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "6b0988bb-47c4-4837-9ace-131560679d01",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "8f7df1e8-55a6-45fd-b80e-c136cc1c5699",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T17:34:58.887436+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "89b0ca14-a07c-403a-80e1-564200e2603b",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "717c5cfc-b50e-4396-8ddc-fe979d8ed6ec",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 10228,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T14:02:56.323682+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "7a0de3b7-0a7a-4e44-bc0a-32a94dff2955",
+        "quantity": 1,
+        "price": 9470,
+        "metal": null,
+        "size": "6",
+        "productName": "3dmodelcheck",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781006517494-i7nxcwxnph-apple-m3-macbook-pro-wallpaper-8k-m4-macbook-pro-16-10-2024-1729106599-hd-wallpaper.png"
+      }
+    ]
+  },
+  {
+    "id": "65b87cf9-8a17-4ef9-b17f-3fed96b0ef3f",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T14:01:33.589054+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "1ae86200-678c-4403-b17f-818ca640b6fd",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "786e208b-7e73-4e01-9a7a-83ceb0840e19",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T13:59:34.079097+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "ad8aca9a-232e-4655-bb30-ed21beb4cf53",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "e6c093e7-2895-4d9a-bac1-72ca9256a456",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T13:59:09.39937+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "568b5a4b-33a9-40b6-9ef6-720308fc125b",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "6b61d624-4ace-4c3a-93a0-64bd24ee1d11",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T13:56:46.498738+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "864b0220-ccec-4ec3-aec2-a1b6635d619a",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "fdb7a4f0-9eb8-40dd-85bd-16c04e6161eb",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T13:39:34.351533+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "843298a8-bf3e-4369-923b-020d1ce8c64f",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "7fe3a618-dcf4-41e8-aa3d-3ca2be5c5109",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T13:34:22.64+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "1967feaf-d034-4a29-ba1c-267f4a982c49",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "f6fbff2a-a5f2-4381-a64e-bc08d45806ba",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T13:32:31.912234+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "173fcab4-0d6d-4259-8dd1-2c4ae6f2da67",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "d35d1303-ef17-4de7-9ce1-7aa20b5ebc81",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T13:21:42.819008+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "d34cc066-6fea-4c31-b4d6-e1c9fe0ab7c3",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "a8ebdab2-0e16-421d-8572-0718b1e5fe05",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T13:04:52.768609+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "dafc82bc-4e1b-4410-9ef3-f259561262d4",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "c7287c0f-e64c-4593-9c44-47f2364010a6",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T12:57:04.907818+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "9e90d829-7247-4fb8-b402-488b1430daa5",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "a7c01c3f-2554-4aab-bab9-8bf4e36551bf",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T12:34:35.96953+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "d2aa3c8c-99db-4bfb-a30a-795114cf09dd",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "359ba842-2143-46e3-8b63-3fa07b606b5a",
+    "customerName": "hardikkamaliya0000@gmail.com",
+    "total": 103,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-16T12:30:01.33467+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "88668e1b-c5a1-4323-80d3-9ddeb3d40bca",
+        "quantity": 1,
+        "price": 95,
+        "metal": null,
+        "size": "6",
+        "productName": "without size, metal, 3d or etc",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781461596184-9oe9hzi66de-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "cf078265-b1e7-41f8-b028-0178eca47c97",
+    "customerName": "newadmin+cc896907-e123-4311-8452-2e0608c75b51@example.com",
+    "total": 1232,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-06-15T10:16:29.97023+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "d0ed9273-b580-46a1-9713-bb9583099f59",
+        "quantity": 1,
+        "price": 1141,
+        "metal": null,
+        "size": "6",
+        "productName": "faff",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1781462295363-o9t7yggvo37-24799b279283c02b28818ba837e3fe6d.jpg"
+      }
+    ]
+  },
+  {
+    "id": "d9094091-22d4-4e9e-9615-ee63adac4a43",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 12514,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-05-01T07:09:11.747052+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "7379c610-2a32-40a6-b11e-0e54ea404d96",
+        "quantity": 1,
+        "price": 11587,
+        "metal": "14K Yellow Gold",
+        "size": "6",
+        "productName": "faff",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1777542681188-aen6rvcg4f-porsche_911.jpg"
+      }
+    ]
+  },
+  {
+    "id": "606c4cc3-351d-4242-a424-6239ab35bb3c",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 12514,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-05-01T07:05:33.599698+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "204905a7-c042-42e2-b545-f90db9a5771d",
+        "quantity": 1,
+        "price": 11587,
+        "metal": "14K Yellow Gold",
+        "size": "6",
+        "productName": "faff",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1777542681188-aen6rvcg4f-porsche_911.jpg"
+      }
+    ]
+  },
+  {
+    "id": "cd1d2896-c0da-47a2-8ddf-a708a7e66d51",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 128003,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-05-01T07:03:15.364975+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "a03f9880-1edb-4c5f-a569-930c7fadee02",
+        "quantity": 1,
+        "price": 117202,
+        "metal": "14K Yellow Gold",
+        "size": "6",
+        "productName": "testing",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1777543197192-hd9g86o6d5-882637.jpg"
+      }
+    ]
+  },
+  {
+    "id": "807eebd3-e1ea-471a-8e75-9ffbbc965e8f",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 1347.7,
+    "currency": "USD",
+    "status": "confirmed",
+    "createdAt": "2026-05-01T06:56:15.322339+00:00",
+    "payment_method": "stripe",
+    "items": [
+      {
+        "id": "8a599326-6d81-492c-a62e-04e1665035a3",
+        "quantity": 1,
+        "price": 1233.98,
+        "metal": "14K Yellow Gold",
+        "size": "6",
+        "productName": "testing",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1777543197192-hd9g86o6d5-882637.jpg"
+      }
+    ]
+  },
+  {
+    "id": "e930d0d8-f054-4dbf-8ac1-4632f0ca5d64",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 1347.7,
+    "currency": "USD",
+    "status": "confirmed",
+    "createdAt": "2026-05-01T06:54:33.469568+00:00",
+    "payment_method": "stripe",
+    "items": [
+      {
+        "id": "213bb1b6-76f9-45e3-bd66-e7dbb66f6f61",
+        "quantity": 1,
+        "price": 1233.98,
+        "metal": "14K Yellow Gold",
+        "size": "6",
+        "productName": "testing",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1777543197192-hd9g86o6d5-882637.jpg"
+      }
+    ]
+  },
+  {
+    "id": "092fbfbd-186d-4409-b82b-fdc0a7f83b04",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 1347.7,
+    "currency": "USD",
+    "status": "confirmed",
+    "createdAt": "2026-05-01T06:53:02.313056+00:00",
+    "payment_method": "stripe",
+    "items": [
+      {
+        "id": "0fd89c21-e975-415d-a331-c1bbe246d8ae",
+        "quantity": 1,
+        "price": 1233.98,
+        "metal": "14K Yellow Gold",
+        "size": "6",
+        "productName": "testing",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1777543197192-hd9g86o6d5-882637.jpg"
+      }
+    ]
+  },
+  {
+    "id": "1a242df3-1fc5-4f61-904b-91bce1f1e3ba",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 1347.7,
+    "currency": "USD",
+    "status": "confirmed",
+    "createdAt": "2026-05-01T06:51:55.353696+00:00",
+    "payment_method": "stripe",
+    "items": [
+      {
+        "id": "6f33e56b-87d4-4e00-9fb0-30d072f2e5af",
+        "quantity": 1,
+        "price": 1233.98,
+        "metal": "14K Yellow Gold",
+        "size": "6",
+        "productName": "testing",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1777543197192-hd9g86o6d5-882637.jpg"
+      }
+    ]
+  },
+  {
+    "id": "86232527-a6bc-4cac-9302-705961e51bfd",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 1347.7,
+    "currency": "USD",
+    "status": "confirmed",
+    "createdAt": "2026-05-01T06:49:59.928531+00:00",
+    "payment_method": "stripe",
+    "items": [
+      {
+        "id": "e499fdb3-2b0c-4131-bb1a-918416ad40b1",
+        "quantity": 1,
+        "price": 1233.98,
+        "metal": "14K Yellow Gold",
+        "size": "6",
+        "productName": "testing",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1777543197192-hd9g86o6d5-882637.jpg"
+      }
+    ]
+  },
+  {
+    "id": "805bee8f-e587-48a7-8e36-b79f797c16b2",
+    "customerName": "ortegavemos@gmail.com",
+    "total": 17.16,
+    "currency": "USD",
+    "status": "confirmed",
+    "createdAt": "2026-04-16T05:39:33.346832+00:00",
+    "payment_method": "cod",
+    "items": [
+      {
+        "id": "a5b3ea07-af54-41fa-aba0-e0255f05fdb6",
+        "quantity": 1,
+        "price": 2,
+        "metal": null,
+        "size": null,
+        "productName": "Emerald Cut Simulated Diamond Ring, 14K Gold Bezel Setting, Engagement Ring",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776248085729-rtslj8llez-lightweight_gold_ring_bfe14787-7d67-41ee-83d2-fdd23cd12812.webp"
+      }
+    ]
+  },
+  {
+    "id": "bdee5b4b-2d6e-46cf-aec4-3176c4e0781b",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 38.88,
+    "currency": "USD",
+    "status": "delivered",
+    "createdAt": "2026-04-08T10:28:43.91517+00:00",
+    "payment_method": "stripe",
+    "items": [
+      {
+        "id": "8f876ecb-f6cd-4075-8f39-0620f9a584b5",
+        "quantity": 3,
+        "price": 12,
+        "metal": null,
+        "size": null,
+        "productName": "Cushion Cut Engagement Ring, Hidden Halo Solitaire, Crushed Ice Brilliance, Sterling Silver Bridal Band",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776246984743-gsggg31oqjd-lightweight_gold_ring_bfe14787-7d67-41ee-83d2-fdd23cd12812.webp"
+      }
+    ]
+  },
+  {
+    "id": "877b80c7-c6b4-4405-9c82-5ff1aa5447c9",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 1207,
+    "currency": "INR",
+    "status": "refunded",
+    "createdAt": "2026-04-08T06:56:22.169608+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "1eeb4b5c-b109-4e57-bc2f-38e2796a0c9b",
+        "quantity": 1,
+        "price": 1118,
+        "metal": null,
+        "size": null,
+        "productName": "Cushion Cut Engagement Ring, Hidden Halo Solitaire, Crushed Ice Brilliance, Sterling Silver Bridal Band",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776246984743-gsggg31oqjd-lightweight_gold_ring_bfe14787-7d67-41ee-83d2-fdd23cd12812.webp"
+      }
+    ]
+  },
+  {
+    "id": "a7331b67-e174-4e4d-bb4a-0face36cfd06",
+    "customerName": "01bgmipopularity02@gmail.com",
+    "total": 1207,
+    "currency": "INR",
+    "status": "confirmed",
+    "createdAt": "2026-04-08T04:11:25.464504+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "1e6599c0-9eca-4da3-a811-d916d464ba2f",
+        "quantity": 1,
+        "price": 1118,
+        "metal": null,
+        "size": null,
+        "productName": "Cushion Cut Engagement Ring, Hidden Halo Solitaire, Crushed Ice Brilliance, Sterling Silver Bridal Band",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776246984743-gsggg31oqjd-lightweight_gold_ring_bfe14787-7d67-41ee-83d2-fdd23cd12812.webp"
+      }
+    ]
+  },
+  {
+    "id": "fc252348-b4c4-48cd-a73e-13e3d45623c6",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 12.96,
+    "currency": "USD",
+    "status": "confirmed",
+    "createdAt": "2026-04-07T08:37:39.760146+00:00",
+    "payment_method": "stripe",
+    "items": [
+      {
+        "id": "3639062a-b9df-4490-bdac-7a1cda76d9b7",
+        "quantity": 1,
+        "price": 12,
+        "metal": null,
+        "size": null,
+        "productName": "Cushion Cut Engagement Ring, Hidden Halo Solitaire, Crushed Ice Brilliance, Sterling Silver Bridal Band",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776246984743-gsggg31oqjd-lightweight_gold_ring_bfe14787-7d67-41ee-83d2-fdd23cd12812.webp"
+      }
+    ]
+  },
+  {
+    "id": "de7929ba-f7a0-4fac-b95c-9231f340fa4d",
+    "customerName": "dudhatvrutika18@gmail.com",
+    "total": 12.96,
+    "currency": "INR",
+    "status": "cancelled",
+    "createdAt": "2026-04-01T11:23:31.107139+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "6f65b156-61e2-43c2-97bb-68a1af4be996",
+        "quantity": 1,
+        "price": 12,
+        "metal": null,
+        "size": null,
+        "productName": "Champagne Pink Pear Cut Bypass Ring, 14k White Gold Half Bezel Wedding Ring",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776247934503-8xfg6kydmhl-marquise_diamond_flower_ring_fe181ee0-47a6-4234-ad34-1457019488cd.webp"
+      }
+    ]
+  },
+  {
+    "id": "2c101239-61f9-4b0a-82b9-608ddd108beb",
+    "customerName": "dudhatvrutika18@gmail.com",
+    "total": 12.96,
+    "currency": "INR",
+    "status": "cancelled",
+    "createdAt": "2026-04-01T11:23:06.191563+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "47ca7b9c-9a9d-4070-8ca4-1934bce9a49f",
+        "quantity": 1,
+        "price": 12,
+        "metal": null,
+        "size": null,
+        "productName": "Champagne Pink Pear Cut Bypass Ring, 14k White Gold Half Bezel Wedding Ring",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776247934503-8xfg6kydmhl-marquise_diamond_flower_ring_fe181ee0-47a6-4234-ad34-1457019488cd.webp"
+      }
+    ]
+  },
+  {
+    "id": "fd466c0a-2d7d-4a1b-930e-0bb980ff4e2d",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 12.96,
+    "currency": "INR",
+    "status": "cancelled",
+    "createdAt": "2026-03-28T18:22:01.472925+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "8033c856-90f8-40f5-ab6b-a98b432e1789",
+        "quantity": 1,
+        "price": 12,
+        "metal": null,
+        "size": null,
+        "productName": "Champagne Pink Pear Cut Bypass Ring, 14k White Gold Half Bezel Wedding Ring",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776247934503-8xfg6kydmhl-marquise_diamond_flower_ring_fe181ee0-47a6-4234-ad34-1457019488cd.webp"
+      }
+    ]
+  },
+  {
+    "id": "58ad96f3-631c-4541-bcae-1f0ae45d5ea2",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 12.96,
+    "currency": "INR",
+    "status": "cancelled",
+    "createdAt": "2026-03-28T18:21:07.349178+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "22f08f66-867b-4689-a65d-571e0fc59719",
+        "quantity": 1,
+        "price": 12,
+        "metal": null,
+        "size": null,
+        "productName": "Champagne Pink Pear Cut Bypass Ring, 14k White Gold Half Bezel Wedding Ring",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776247934503-8xfg6kydmhl-marquise_diamond_flower_ring_fe181ee0-47a6-4234-ad34-1457019488cd.webp"
+      }
+    ]
+  },
+  {
+    "id": "c2966711-60ee-4792-9121-6ef2c1088ea5",
+    "customerName": "hackdemo502@gmail.com",
+    "total": 12.96,
+    "currency": "INR",
+    "status": "cancelled",
+    "createdAt": "2026-03-28T18:20:41.092906+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "7aa7f979-46c9-4563-99fc-f139faf15393",
+        "quantity": 1,
+        "price": 12,
+        "metal": null,
+        "size": null,
+        "productName": "Champagne Pink Pear Cut Bypass Ring, 14k White Gold Half Bezel Wedding Ring",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776247934503-8xfg6kydmhl-marquise_diamond_flower_ring_fe181ee0-47a6-4234-ad34-1457019488cd.webp"
+      }
+    ]
+  },
+  {
+    "id": "44b514a0-0d22-4c43-a2cf-82e39372a741",
+    "customerName": "patel@gmail.com",
+    "total": 77.76,
+    "currency": "INR",
+    "status": "cancelled",
+    "createdAt": "2026-03-28T17:27:59.178205+00:00",
+    "payment_method": "online",
+    "items": [
+      {
+        "id": "66639094-a1d1-430c-a4b5-d2c80715a840",
+        "quantity": 6,
+        "price": 12,
+        "metal": null,
+        "size": null,
+        "productName": "Champagne Pink Pear Cut Bypass Ring, 14k White Gold Half Bezel Wedding Ring",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776247934503-8xfg6kydmhl-marquise_diamond_flower_ring_fe181ee0-47a6-4234-ad34-1457019488cd.webp"
+      }
+    ]
+  },
+  {
+    "id": "f4354654-c3f9-4072-8007-e2c8646b90d9",
+    "customerName": "patel@gmail.com",
+    "total": 77.76,
+    "currency": "INR",
+    "status": "cancelled",
+    "createdAt": "2026-03-28T17:25:32.58054+00:00",
+    "payment_method": "stripe",
+    "items": [
+      {
+        "id": "f7a48374-d913-4802-b02c-0e3d34136773",
+        "quantity": 6,
+        "price": 12,
+        "metal": null,
+        "size": null,
+        "productName": "Champagne Pink Pear Cut Bypass Ring, 14k White Gold Half Bezel Wedding Ring",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776247934503-8xfg6kydmhl-marquise_diamond_flower_ring_fe181ee0-47a6-4234-ad34-1457019488cd.webp"
+      }
+    ]
+  },
+  {
+    "id": "3652b488-c253-402a-9eb0-edde48efda53",
+    "customerName": "patel@gmail.com",
+    "total": 116.64,
+    "currency": "INR",
+    "status": "cancelled",
+    "createdAt": "2026-03-25T06:31:15.032245+00:00",
+    "payment_method": "cod",
+    "items": [
+      {
+        "id": "1410c806-0165-4f3b-a3f9-0aa8104d8fb8",
+        "quantity": 9,
+        "price": 12,
+        "metal": null,
+        "size": null,
+        "productName": "Champagne Pink Pear Cut Bypass Ring, 14k White Gold Half Bezel Wedding Ring",
+        "image": "https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev/products/1776247934503-8xfg6kydmhl-marquise_diamond_flower_ring_fe181ee0-47a6-4234-ad34-1457019488cd.webp"
+      }
+    ]
+  }
+]

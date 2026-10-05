@@ -1,0 +1,346 @@
+version: "2"
+type: frontend
+tech_stack:
+  - TypeScript
+  - Next.js 16
+  - React 19
+  - Tailwind CSS
+  - Supabase
+  - Radix UI
+  - GSAP
+  - Framer Motion
+  - Lucide Icons
+routes:
+  - path: /
+    file: app/page.tsx
+    auth_required: false
+    description: Homepage with hero section, rings by style, diamond shapes, categories, featured products, testimonials, and CTA
+  - path: /login
+    file: app/login/page.tsx
+    auth_required: false
+    description: User login page with email and password
+  - path: /auth/signin
+    file: app/auth/signin/page.tsx
+    auth_required: false
+    description: Alternative sign in page
+  - path: /auth/signup
+    file: app/auth/signup/page.tsx
+    auth_required: false
+    description: User registration page
+  - path: /auth/signup-success
+    file: app/auth/signup-success/page.tsx
+    auth_required: false
+    description: Signup success confirmation page
+  - path: /collection
+    file: app/collection/page.tsx
+    auth_required: false
+    description: Browse all products with filtering by category, style, diamond shape, price range, and sorting
+  - path: /collection/[category]
+    file: app/collection/[category]/page.tsx
+    auth_required: false
+    description: Browse products filtered by a specific category
+  - path: /products/[slug]
+    file: app/products/[slug]/page.tsx
+    auth_required: false
+    description: Product detail page with image gallery, 3D model viewer, pricing, and add to cart
+  - path: /cart
+    file: app/cart/page.tsx
+    auth_required: false
+    description: Shopping cart with quantity management and order summary
+  - path: /checkout
+    file: app/checkout/page.tsx
+    auth_required: false
+    description: Checkout page with shipping info and payment
+  - path: /account
+    file: app/account/page.tsx
+    auth_required: true
+    description: User account dashboard with profile and order history
+  - path: /order/success
+    file: app/order/success/page.tsx
+    auth_required: false
+    description: Order confirmation success page
+  - path: /shop
+    file: app/shop/page.tsx
+    auth_required: false
+    description: Shop page redirecting to collection
+  - path: /appointments
+    file: app/appointments/page.tsx
+    auth_required: false
+    description: Book appointments for jewelry consultations
+  - path: /admin
+    file: app/admin/page.tsx
+    auth_required: true
+    description: Admin dashboard with analytics and overview
+  - path: /admin/products
+    file: app/admin/products/page.tsx
+    auth_required: true
+    description: Admin product management (CRUD)
+  - path: /admin/categories
+    file: app/admin/categories/page.tsx
+    auth_required: true
+    description: Admin category management
+  - path: /admin/diamond-shapes
+    file: app/admin/diamond-shapes/page.tsx
+    auth_required: true
+    description: Admin diamond shape management
+  - path: /admin/orders
+    file: app/admin/orders/page.tsx
+    auth_required: true
+    description: Admin order management
+  - path: /admin/users
+    file: app/admin/users/page.tsx
+    auth_required: true
+    description: Admin user management
+  - path: /admin/inventory
+    file: app/admin/inventory/page.tsx
+    auth_required: true
+    description: Admin inventory management
+  - path: /admin/styles
+    file: app/admin/styles/page.tsx
+    auth_required: true
+    description: Admin ring styles management
+  - path: /admin/appointments
+    file: app/admin/appointments/page.tsx
+    auth_required: true
+    description: Admin appointments management
+  - path: /admin/blog
+    file: app/admin/blog/page.tsx
+    auth_required: true
+    description: Admin blog management
+  - path: /admin/messaging
+    file: app/admin/messaging/page.tsx
+    auth_required: true
+    description: Admin messaging/chat management
+  - path: /admin/reports
+    file: app/admin/reports/page.tsx
+    auth_required: true
+    description: Admin sales and analytics reports
+  - path: /admin/offline-sales
+    file: app/admin/offline-sales/page.tsx
+    auth_required: true
+    description: Admin offline sales recording
+  - path: /admin/site-analytics
+    file: app/admin/site-analytics/page.tsx
+    auth_required: true
+    description: Admin site analytics dashboard
+features:
+  - name: Homepage
+    description: Landing page showcasing hero section, rings by style, diamond shapes, categories, featured products, testimonials, and call to action
+    files:
+      - app/page.tsx
+      - components/HeroSection.jsx
+      - components/RingsByStyle.jsx
+      - components/DiamondShapes.jsx
+      - components/Categories.jsx
+      - components/ProductCard.jsx
+      - components/WhyChoose.jsx
+      - components/Testimonials.jsx
+      - components/CTA.jsx
+    entry_route: /
+    user_interactions:
+      - View hero section with animations
+      - Browse rings by style section
+      - Browse diamond shapes section
+      - Browse product categories
+      - View featured products carousel
+      - Read testimonials
+      - Click CTA buttons to navigate to collection
+    api_calls:
+      - method: GET
+        endpoint: /api/products?featured=true
+      - method: GET
+        endpoint: /api/products
+    auth_required: false
+  - name: User Login
+    description: Login with email and password credentials
+    files:
+      - app/login/page.tsx
+      - lib/authStore.ts
+    entry_route: /login
+    user_interactions:
+      - Fill email input field
+      - Fill password input field
+      - Toggle password visibility
+      - Check remember me checkbox
+      - Click Sign In button to submit
+      - See error message on invalid credentials
+      - Navigate to signup page
+    api_calls: []
+    auth_required: false
+  - name: User Signup
+    description: Register a new user account
+    files:
+      - app/auth/signup/page.tsx
+      - lib/authStore.ts
+    entry_route: /auth/signup
+    user_interactions:
+      - Fill name field
+      - Fill email field
+      - Fill password field
+      - Fill confirm password field
+      - Click Create Account button
+      - See validation error messages
+    api_calls: []
+    auth_required: false
+  - name: Product Collection
+    description: Browse and filter the jewelry collection with category, style, diamond shape, and price range filters
+    files:
+      - app/collection/page.tsx
+      - components/ProductCard.jsx
+      - components/header.tsx
+    entry_route: /collection
+    user_interactions:
+      - Browse all products in grid layout
+      - Filter by category
+      - Filter by ring style
+      - Filter by diamond shape
+      - Filter by price range using slider
+      - Sort products by price, name, or date
+      - Quick view product in modal
+      - Add product to cart from quick view
+      - Add product to wishlist
+      - Paginate through products
+      - Search products
+    api_calls:
+      - method: GET
+        endpoint: /api/products
+      - method: GET
+        endpoint: /api/categories
+      - method: GET
+        endpoint: /api/ringbystyles
+      - method: GET
+        endpoint: /api/diamond-shapes
+    auth_required: false
+  - name: Product Detail
+    description: View detailed product information with image gallery, 3D model viewer, and add to cart
+    files:
+      - app/products/[slug]/page.tsx
+      - components/ModelViewer3D.tsx
+    entry_route: /products/[slug]
+    user_interactions:
+      - View product images in gallery
+      - Switch between product images
+      - View 3D model of the product
+      - Read product description and details
+      - Select product variant or size
+      - Click Add to Cart button
+      - Click Add to Wishlist button
+      - View related products
+    api_calls:
+      - method: GET
+        endpoint: /api/products
+    auth_required: false
+  - name: Shopping Cart
+    description: View and manage items in the shopping cart
+    files:
+      - app/cart/page.tsx
+      - lib/cart.ts
+    entry_route: /cart
+    user_interactions:
+      - View cart items with images and prices
+      - Increase or decrease item quantity
+      - Remove item from cart
+      - View order summary with subtotal
+      - Click Proceed to Checkout button
+      - Continue shopping link
+    api_calls: []
+    auth_required: false
+  - name: Checkout
+    description: Complete purchase with shipping and payment information
+    files:
+      - app/checkout/page.tsx
+    entry_route: /checkout
+    user_interactions:
+      - Fill shipping address form
+      - Select shipping method
+      - Enter payment information
+      - Review order summary
+      - Place order
+    api_calls:
+      - method: POST
+        endpoint: /api/checkout
+      - method: POST
+        endpoint: /api/orders
+    auth_required: false
+  - name: User Account
+    description: User account dashboard with profile and order history
+    files:
+      - app/account/page.tsx
+      - lib/authStore.ts
+    entry_route: /account
+    user_interactions:
+      - View personal profile information
+      - View order history
+      - Update profile details
+      - Logout from account
+    api_calls:
+      - method: GET
+        endpoint: /api/orders
+    auth_required: true
+  - name: Appointments Booking
+    description: Book appointments for jewelry consultations
+    files:
+      - app/appointments/page.tsx
+    entry_route: /appointments
+    user_interactions:
+      - Select appointment date
+      - Select appointment time
+      - Fill contact information
+      - Select appointment type
+      - Submit booking request
+    api_calls:
+      - method: GET
+        endpoint: /api/appointments
+      - method: POST
+        endpoint: /api/appointments
+    auth_required: false
+  - name: Header Navigation
+    description: Site header with navigation menu, search, cart, and user actions
+    files:
+      - components/header.tsx
+    entry_route: /
+    user_interactions:
+      - Navigate to different sections using menu
+      - Search for products
+      - Open cart drawer
+      - Access user account or login
+      - Toggle mobile menu
+    api_calls: []
+    auth_required: false
+  - name: Admin Dashboard
+    description: Admin panel for managing products, categories, orders, users, and analytics
+    files:
+      - app/admin/page.tsx
+      - app/admin/layout.tsx
+      - components/admin-sidebar.tsx
+    entry_route: /admin
+    user_interactions:
+      - View dashboard analytics overview
+      - Navigate between admin sections via sidebar
+      - Manage products (create, edit, delete)
+      - Manage categories
+      - Manage diamond shapes
+      - Manage orders and update statuses
+      - View and manage users
+      - View sales reports
+      - Manage blog posts
+      - Record offline sales
+    api_calls:
+      - method: GET
+        endpoint: /api/admin/analytics
+      - method: GET
+        endpoint: /api/products
+      - method: POST
+        endpoint: /api/products
+      - method: GET
+        endpoint: /api/categories
+      - method: GET
+        endpoint: /api/orders
+    auth_required: true
+known_limitations:
+  - issue: Login uses localStorage-based authentication instead of Supabase Auth
+    location: app/login/page.tsx
+    impact: Authentication is not secure and is only client-side
+  - issue: Cart state is managed in localStorage
+    location: lib/cart.ts
+    impact: Cart data is per-device and not synced across devices

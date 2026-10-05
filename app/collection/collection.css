@@ -1,0 +1,99 @@
+/* collection.css */
+/* Moving critical collection page styles to a separate file to prevent FOUC */
+
+.cp2-root {
+    background: var(--c-bg);
+    color: var(--c-text);
+    font-family: var(--font-main);
+    min-height: 100vh;
+}
+
+/* Add a subtle grain effect for premium feel */
+.cp2-root::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: .03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.cp2-hero {
+    position: relative;
+    overflow: hidden;
+    min-height: 380px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--c-bg);
+}
+
+.cp2-hero-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-image: url('https://images.unsplash.com/photo-1515562141207-7a18b5ce7142?q=80&w=2070&auto=format&fit=crop');
+    background-size: cover;
+    background-position: center 30%;
+    opacity: 0.15;
+    filter: sepia(20%) brightness(1.1);
+}
+
+.cp2-hero-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(to bottom, transparent 0%, var(--c-bg) 100%);
+}
+
+.cp2-hero-inner {
+    position: relative;
+    z-index: 2;
+    max-width: 1340px;
+    margin: 0 auto;
+    padding: 0 52px;
+    width: 100%;
+    text-align: center;
+}
+
+.cp2-hero-h1 {
+    font-family: var(--font-main);
+    font-size: clamp(40px, 6vw, 76px);
+    font-weight: 300;
+    line-height: .92;
+    color: var(--c-text);
+    letter-spacing: -.01em;
+    margin-bottom: 16px;
+}
+
+.cp2-hero-h1 em {
+    font-style: italic;
+    color: var(--c-accent);
+}
+
+.cp2-layout {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 48px 100px;
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 60px;
+    align-items: start;
+    position: relative;
+    z-index: 1;
+}
+
+@media(max-width: 1100px) {
+    .cp2-layout {
+        grid-template-columns: 1fr;
+        gap: 32px;
+        padding: 0 24px 72px;
+    }
+}
+
+@media(max-width: 640px) {
+    .cp2-layout {
+        padding: 0 20px 72px;
+    }
+}
