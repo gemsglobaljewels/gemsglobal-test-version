@@ -55,7 +55,7 @@ const CSS = `
 
 .ia-tx{flex:1;min-width:0;}
 .ia-title{
-  font-family:var(--font-cormorant),'Cormorant Garamond',Georgia,serif;
+  font-family:var(--font-dmsans),'DM Sans',system-ui,sans-serif;
   font-size:17px;font-weight:600;color:var(--ink);line-height:1.18;letter-spacing:.005em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }

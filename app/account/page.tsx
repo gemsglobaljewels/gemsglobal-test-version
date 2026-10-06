@@ -1219,8 +1219,9 @@ a:hover .ac-ul,button:hover .ac-ul,.ac-ul:hover{ background-size:100% 1px; }
 .ac-card > *{ position:relative;z-index:1; }
 
 .ac-lead-val{
-  font-family:var(--display);font-weight:400;line-height:1;
-  font-size:clamp(36px,4.4vw,56px);color:var(--ink);
+  font-family:var(--sans);font-weight:800;line-height:1;
+  font-size:clamp(36px,4.4vw,56px);color:#111;
+  font-variant-numeric:tabular-nums;
 }
 .ac-lead-sub{
   margin:0;font-family:var(--serif);font-style:italic;font-weight:500;

@@ -362,8 +362,9 @@ const PDP_CSS = `
   color: var(--mu); margin-bottom: 6px; font-family: var(--sans);
 }
 .pdp-price {
-  font-family: var(--serif); font-size: clamp(34px, 4vw, 46px); font-weight: 600;
-  color: var(--ink); line-height: 1; margin-bottom: 22px;
+  font-family: var(--sans); font-size: clamp(32px, 3.8vw, 44px); font-weight: 800;
+  color: #111; letter-spacing: .01em; font-variant-numeric: tabular-nums;
+  line-height: 1; margin-bottom: 22px;
   display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
 }
 /* struck-through original ("real") price next to the sale price */
@@ -444,20 +445,27 @@ const PDP_CSS = `
 /* CTA */
 .pdp-ctas { display: flex; gap: 12px; margin-bottom: 14px; }
 .pdp-btn-primary {
-  flex: 1; height: 56px;
+  flex: 1; height: 56px; position: relative; overflow: hidden;
   display: flex; align-items: center; justify-content: center; gap: 11px;
   font-size: 11px; font-weight: 700; letter-spacing: .18em;
   text-transform: uppercase; color: #fff;
-  background: linear-gradient(135deg,var(--a),var(--a2));
-  border: 1px solid transparent;
+  background: linear-gradient(135deg,var(--a),#6F5A42);
+  border: none;
   border-radius: 30px; cursor: pointer;
-  transition: all .28s; font-family: var(--sans);
+  transition: box-shadow .35s cubic-bezier(.22,1,.36,1), transform .28s cubic-bezier(.22,1,.36,1); font-family: var(--sans);
   box-shadow: 0 14px 32px -14px rgba(140,116,86,.7);
 }
+.pdp-btn-primary::after {
+  content: ''; position: absolute; inset: 0; background: var(--ink);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform .45s cubic-bezier(.22,1,.36,1);
+}
+.pdp-btn-primary > * { position: relative; z-index: 1; }
 .pdp-btn-primary:hover:not(:disabled) {
-  box-shadow: 0 18px 40px -12px rgba(140,116,86,.85);
+  box-shadow: 0 18px 40px -12px rgba(58,46,34,.5);
   transform: translateY(-2px);
 }
+.pdp-btn-primary:hover:not(:disabled)::after { transform: scaleX(1); }
 .pdp-btn-primary:disabled { opacity: .42; cursor: not-allowed; box-shadow: none; }
 .pdp-btn-chat {
   width: 56px; height: 56px; flex-shrink: 0;
@@ -479,7 +487,7 @@ const PDP_CSS = `
   border-radius: 30px; cursor: pointer; font-family: var(--sans);
   transition: all .22s;
 }
-.pdp-btn-sec:hover { border-color: var(--a2); color: var(--ink); background: var(--cr); }
+.pdp-btn-sec:hover { border-color:transparent; color:#fff; background:linear-gradient(135deg,var(--a),#6F5A42); transform:translateY(-2px); box-shadow:0 14px 28px -14px rgba(58,46,34,.5); }
 .pdp-btn-sec.on { border-color: var(--a2); color: var(--a); background: var(--al); }
 
 /* trust */
@@ -867,9 +875,6 @@ const PDP_CSS = `
   text-transform: uppercase;
   color: var(--mu);
   font-family: var(--sans);
-  text-decoration: underline;
-  text-decoration-color: var(--bd2);
-  text-underline-offset: 3px;
 }
 .pdp-vt-row {
   display: grid;
@@ -913,15 +918,32 @@ const PDP_CSS = `
   border-radius: 16px;
   padding: 14px 20px;
   background: var(--w);
-  font-family: var(--serif);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--ink);
   transition: border-color .2s, box-shadow .2s;
 }
+/* Variant amount — solid black, bold, clean sans with tabular numerals.
+   Simple, sharp, premium (no more gold serif that reads "0" as "O"). */
+.pdp-vt-amt-wrap { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pdp-vt-amt {
+  font-family: var(--sans);
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: .01em;
+  color: #111;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.pdp-vt-was {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fa);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  font-variant-numeric: tabular-nums;
+}
 .pdp-vt-row.on .pdp-vt-price {
-  border-color: var(--a2);
-  box-shadow: 0 0 0 3px var(--al);
+  border-color: #111;
+  box-shadow: 0 0 0 3px rgba(17,17,17,.08);
 }
 .pdp-vt-vcount {
   font-size: 11px;
@@ -936,7 +958,8 @@ const PDP_CSS = `
   }
   .pdp-vt-hcol:nth-child(3), .pdp-vt-hcol:nth-child(4) { display: none; }
   .pdp-vt-carat { grid-column: 2; font-size: 12px; color: var(--mu); margin-top: -4px; }
-  .pdp-vt-price { grid-column: 2; margin-top: 4px; padding: 10px 12px; font-size: 14px; }
+  .pdp-vt-price { grid-column: 2; margin-top: 4px; padding: 10px 12px; }
+  .pdp-vt-amt { font-size: 16px; }
   .pdp-vt-check { width: 18px; height: 18px; }
 }
 
@@ -1559,25 +1582,14 @@ export default function ProductDetails({ initialProduct, slug }: {
                               <div className="pdp-vt-carat">{rowCarat}</div>
                               <div className="pdp-vt-price">
                                 {d > 0 ? (
-                                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                                    <span style={{ color: 'var(--a)', fontWeight: 700, fontSize: '1.05em' }}>
-                                      <Price value={displayPrice} />
-                                    </span>
-                                    <span style={{
-                                      fontFamily: 'var(--serif)',
-                                      fontSize: '.78em',
-                                      fontWeight: 600,
-                                      color: 'var(--ink)',
-                                      opacity: .65,
-                                      textDecoration: 'line-through',
-                                      textDecorationThickness: '1.5px',
-                                      textDecorationColor: 'rgba(46, 38, 32, 0.55)'
-                                    }}>
+                                  <span className="pdp-vt-amt-wrap">
+                                    <Price value={displayPrice} className="pdp-vt-amt" />
+                                    <span className="pdp-vt-was">
                                       <Price value={rowPrice} />
                                     </span>
                                   </span>
                                 ) : (
-                                  <Price value={displayPrice} />
+                                  <Price value={displayPrice} className="pdp-vt-amt" />
                                 )}
 
                               </div>

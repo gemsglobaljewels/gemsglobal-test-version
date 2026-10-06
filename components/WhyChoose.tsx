@@ -93,7 +93,7 @@ export default function WhyChoose() {
         transition={{ duration: 0.6, delay: 0.05 }}
         style={{
           textAlign: 'center',
-          fontFamily: '"Cormorant Garamond", "Garamond", "Times New Roman", serif',
+          fontFamily: '"DM Sans", system-ui, sans-serif',
           fontSize: 'clamp(32px, 4vw, 48px)',
           fontWeight: 400,
           letterSpacing: '-0.01em',
@@ -150,7 +150,7 @@ export default function WhyChoose() {
               {/* Title */}
               <h3
                 style={{
-                  fontFamily: '"Cormorant Garamond", "Garamond", serif',
+                  fontFamily: '"DM Sans", system-ui, sans-serif',
                   fontSize: 19,
                   fontWeight: 500,
                   color: '#1a1714',

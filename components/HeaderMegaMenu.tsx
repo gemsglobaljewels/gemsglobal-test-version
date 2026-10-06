@@ -113,6 +113,14 @@ const NavHeart = ({ size = 20 }: { size?: number }) => (
     <path d="M12 20.4S3.6 15.6 3.6 9.6A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 8.4 2c0 6-8.4 10.8-8.4 10.8Z" />
   </svg>
 )
+/* Boutique bag — tapered silhouette, arched handles. Clean outline (no seal)
+   so the centered count badge can sit in its middle with strokes over it. */
+const NavBag = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5.2 8.2h13.6l-1.1 12.1a1 1 0 0 1-1 .9H7.3a1 1 0 0 1-1-.9L5.2 8.2Z" />
+    <path d="M9 8.2V6.8a3 3 0 0 1 6 0v1.4" />
+  </svg>
+)
 const NavUser = ({ size = 20 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <circle cx="12" cy="8.2" r="3.6" />
@@ -241,16 +249,22 @@ const CSS = `
 @media(max-width:1023px){.hm-ic{width:41px;height:41px;border-radius:12px;}}
 @media(max-width:380px){.hm-ic{width:38px;height:38px;border-radius:11px;}}
 
-/* count badge on an action icon (cart) */
+/* count badge — sits FULLY outside the button, touching its top-right corner.
+   Icon stays perfectly centered and untouched; badge takes no layout space. */
 .hm-ic-badge{
-  position:absolute;top:-5px;right:-5px;z-index:3;min-width:19px;height:19px;padding:0 5px;border-radius:10px;
+  position:absolute;top:-16px;right:-16px;z-index:3;min-width:16px;height:16px;padding:0 4px;border-radius:10px;
   background:linear-gradient(135deg,var(--hm-gold),var(--hm-gold2));color:#fff;
-  font-family:var(--hm-sans);font-size:10px;font-weight:700;line-height:1;letter-spacing:.01em;
+  font-family:var(--hm-sans);font-size:9px;font-weight:700;line-height:1;letter-spacing:.01em;
+  font-variant-numeric:tabular-nums;
   display:inline-flex;align-items:center;justify-content:center;
-  border:2px solid var(--hm-w);box-shadow:0 3px 8px -2px rgba(140,116,86,.55);
+  border:1.5px solid var(--hm-w);box-shadow:0 3px 8px -2px rgba(58,46,34,.5);
   animation:hmBadgePop .38s var(--hm-spring);pointer-events:none;
 }
-.hm-ic:hover .hm-ic-badge{background:var(--hm-ink);}
+/* smaller screens: button shrinks (41px/38px) so the badge steps down too,
+   keeping the same inside-corner balance instead of crowding the icon */
+@media(max-width:1023px){.hm-ic-badge{min-width:15px;height:15px;font-size:8.5px;top:-15px;right:-15px;}}
+@media(max-width:380px){.hm-ic-badge{min-width:14px;height:14px;font-size:8px;top:-14px;right:-14px;border-width:1px;}}
+.hm-ic:hover .hm-ic-badge{background:linear-gradient(135deg,var(--hm-gold),var(--hm-gold2));}
 @keyframes hmBadgePop{0%{transform:scale(0);}60%{transform:scale(1.18);}100%{transform:scale(1);}}
 
 .hm-consultant{
@@ -1244,7 +1258,7 @@ export default function HeaderMegaMenu() {
               )}
               {showCart && (
                 <Link href="/cart" className="hm-ic" aria-label={`Cart${cartCnt > 0 ? `, ${cartCnt} item${cartCnt > 1 ? 's' : ''}` : ''}`}>
-                  <ShoppingBag size={20} />
+                  <NavBag size={20} />
                   {cartCnt > 0 && <span className="hm-ic-badge" suppressHydrationWarning>{fmtCount(cartCnt)}</span>}
                 </Link>
               )}
@@ -1444,7 +1458,7 @@ export default function HeaderMegaMenu() {
             )}
             {showCart && (
               <Link href="/cart" className="hm-foot-btn hm-foot-btn--cart" onClick={() => setMobileOpen(false)}>
-                <ShoppingBag size={15} /> Cart
+                <NavBag size={15} /> Cart
                 {cartCnt > 0 && <span className="hm-foot-badge" suppressHydrationWarning>{fmtCount(cartCnt)}</span>}
               </Link>
             )}

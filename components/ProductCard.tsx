@@ -382,8 +382,8 @@ const MODAL_CSS = `
     --gold:#B08D57; --gold-hi:#D9BC8C; --gold-deep:#8C6D3F;
     --hairline:rgba(31,24,16,.1);
     --ground:rgba(31,24,16,.1);
-    --serif:var(--font-cormorant),'Cormorant Garamond',Georgia,serif;
-    --disp:var(--font-bodoni),'Bodoni Moda',Georgia,serif;
+    --serif:var(--font-dmsans),'DM Sans',system-ui,sans-serif;
+    --disp:var(--font-dmsans),'DM Sans',system-ui,sans-serif;
     --sans:var(--font-dmsans),'DM Sans',system-ui,sans-serif;
     --e-lux:cubic-bezier(.19,1,.22,1);
     --e-silk:cubic-bezier(.33,0,.15,1);
@@ -545,9 +545,9 @@ const MODAL_CSS = `
   }
 
   .qve-pricerow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 16px; }
-  .qve-price { font-family: var(--disp); font-weight: 600; font-size: clamp(1.35rem, 2.1vw, 1.7rem); color: var(--ink); letter-spacing: .02em; line-height: 1; }
+  .qve-price { font-family: var(--sans); font-weight: 800; font-size: clamp(1.35rem, 2.1vw, 1.7rem); color: #111; letter-spacing: .01em; line-height: 1; font-variant-numeric: tabular-nums; }
   .qve-price-wrap { display: inline-flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-  .qve-price--sale { color: var(--gold-deep); }
+  .qve-price--sale { color: #111; }
   .qve-strike { font-family: var(--disp); font-weight: 500; font-size: 1.05rem; color: var(--ink); opacity: .55; text-decoration: line-through; text-decoration-thickness: 1.5px; text-decoration-color: rgba(46, 38, 32, 0.5); }
   .qve-off {
     font-family: var(--sans); font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
@@ -598,21 +598,22 @@ const MODAL_CSS = `
   .qve-add {
     position: relative; flex: 1; min-height: 52px; border: none; border-radius: 2px; cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center; gap: 10px; overflow: hidden;
-    background: linear-gradient(180deg, #C9A567, #A9834C); color: #FFFDF5;
+    background: linear-gradient(135deg, #8C7456, #6F5A42); color: #FFFDF5;
     font-family: var(--sans); font-size: 11.5px; font-weight: 700;
     letter-spacing: .2em; text-transform: uppercase;
     box-shadow: 0 18px 34px -16px rgba(140,109,63,.55);
-    transition: color .3s ease, transform .35s var(--e-lux), box-shadow .35s ease;
+    transition: transform .35s var(--e-lux), box-shadow .35s ease;
   }
-  /* champagne sweep across the gold */
+  /* ink wipe across the gold — one motion language for every primary CTA */
   .qve-add::before {
-    content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 50%;
-    background: linear-gradient(100deg, transparent, rgba(255,253,245,.35), transparent);
-    transform: skewX(-12deg);
-    transition: left .8s var(--e-lux);
+    content: ''; position: absolute; inset: 0;
+    background: #1F1811;
+    transform: scaleX(0); transform-origin: left;
+    transition: transform .45s var(--e-lux);
   }
-  .qve-add:hover:not(:disabled) { color: #FFFFFF; transform: translateY(-1px); box-shadow: 0 22px 40px -16px rgba(140,109,63,.65); }
-  .qve-add:hover:not(:disabled)::before { left: 110%; }
+  .qve-add > * { position: relative; z-index: 1; }
+  .qve-add:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 22px 40px -16px rgba(31,24,17,.55); }
+  .qve-add:hover:not(:disabled)::before { transform: scaleX(1); }
   .qve-add:disabled { opacity: .8; cursor: default; }
   .qve-add:focus-visible { outline: 1px solid var(--gold-deep); outline-offset: 3px; }
   .qve-wish {
@@ -883,7 +884,7 @@ const QuickViewModal = memo(({ product, open, onClose, onAdd, wished, onWish }: 
               className="qve-add"
             >
               <ShoppingBag size={16} strokeWidth={2} />
-              {adding ? 'Reserving…' : 'Add to Bag'}
+              <span>{adding ? 'Reserving…' : 'Add to Bag'}</span>
             </button>
             <button onClick={onWish}
               className={`qve-wish${wished ? ' is-on' : ''}`}
@@ -942,8 +943,8 @@ const CARD_CSS = `
     --sale-bg:rgba(176,141,87,.12);
     --ok:#5F7A5A; --ground:rgba(31,24,16,.12);
     --hairline:rgba(31,24,16,.08); --edge:rgba(31,24,16,.07);
-    --serif:var(--font-cormorant),'Cormorant Garamond',Georgia,serif;
-    --disp:var(--font-bodoni),'Bodoni Moda',Georgia,serif;
+    --serif:var(--font-dmsans),'DM Sans',system-ui,sans-serif;
+    --disp:var(--font-dmsans),'DM Sans',system-ui,sans-serif;
     --sans:var(--font-dmsans),'DM Sans',system-ui,sans-serif;
     --e-lux:cubic-bezier(.19,1,.22,1);
     --e-silk:cubic-bezier(.33,0,.15,1);
@@ -1148,12 +1149,12 @@ const CARD_CSS = `
   }
   .gvc-from { font-family: var(--sans); font-size: 8px; font-weight: 700; letter-spacing: .26em; text-transform: uppercase; color: var(--muted); opacity: .8; }
   .gvc-price {
-    font-family: var(--disp); font-weight: 500; font-size: 1.24rem; line-height: 1;
-    color: var(--gold-deep); letter-spacing: .02em;
-    transition: color .45s ease .15s, letter-spacing .65s var(--e-silk) .15s;
+    font-family: var(--sans); font-weight: 800; font-size: 1.24rem; line-height: 1;
+    color: #111; letter-spacing: .01em; font-variant-numeric: tabular-nums;
+    transition: letter-spacing .65s var(--e-silk) .15s;
   }
-  .gvc-card:hover .gvc-price, .gvc-list:hover .gvc-price { color: var(--gold-deep); letter-spacing: .055em; }
-  .gvc-price--sale { color: var(--gold-deep); }
+  .gvc-card:hover .gvc-price, .gvc-list:hover .gvc-price { color: #111; letter-spacing: .055em; }
+  .gvc-price--sale { color: #111; }
   .gvc-strike {
     font-family: var(--disp); font-weight: 400; font-size: .82rem; line-height: 1;
     color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(155,140,119,.7);
@@ -1173,7 +1174,7 @@ const CARD_CSS = `
   }
   .gvc-bar .gvc-row { color: var(--gold-deep); transition: color .35s ease, letter-spacing .5s var(--e-silk); }
   .gvc-card:hover .gvc-bar { border-top-color: rgba(176,141,87,.4); }
-  .gvc-bar:hover { background: linear-gradient(180deg, #C9A567, #A9834C); border-top-color: transparent; }
+  .gvc-bar:hover { background: linear-gradient(135deg, #8C7456, #6F5A42); border-top-color: transparent; }
   .gvc-bar:hover .gvc-row { color: #FFFDF5; letter-spacing: .26em; }
   .gvc-bar:focus-visible { outline: 1px solid var(--gold-deep); outline-offset: -2px; }
   .gvc-roll { display: flex; flex-direction: column; transform: translateY(0); transition: transform .34s var(--e-lux); }
@@ -1242,10 +1243,17 @@ const CARD_CSS = `
   }
   .gvc-l-add {
     position: relative; height: 48px; overflow: hidden; border: none; border-radius: 2px;
-    background: linear-gradient(180deg, #C9A567, #A9834C); cursor: pointer; padding: 0;
+    background: linear-gradient(135deg, #8C7456, #6F5A42); cursor: pointer; padding: 0;
     box-shadow: 0 16px 30px -16px rgba(140,109,63,.55);
     transition: transform .35s var(--e-lux), box-shadow .35s ease;
   }
+  .gvc-l-add::after {
+    content: ''; position: absolute; inset: 0; background: #1F1811;
+    transform: scaleX(0); transform-origin: left;
+    transition: transform .45s var(--e-lux);
+  }
+  .gvc-l-add:hover::after { transform: scaleX(1); }
+  .gvc-l-add .gvc-roll { position: relative; z-index: 1; }
   .gvc-l-add:hover { transform: translateY(-1px); box-shadow: 0 20px 36px -16px rgba(140,109,63,.65); }
   .gvc-l-add:focus-visible { outline: 1px solid var(--gold-deep); outline-offset: 3px; }
   .gvc-l-add .gvc-row { color: #FFFDF5; transition: color .3s ease; }
@@ -1780,7 +1788,7 @@ export const ProductSectionTitle = memo(({ eyebrow, title, subtitle }: ProductSe
       </p>
     )}
     <h2 style={{
-      fontFamily: "var(--font-cormorant),'Cormorant Garamond',Georgia,serif",
+      fontFamily: "var(--font-dmsans),'DM Sans',system-ui,sans-serif",
       fontSize: 'clamp(1.8rem, 4vw, 2.8rem)',
       fontWeight: 300,
       letterSpacing: '0.01em',
@@ -1793,7 +1801,7 @@ export const ProductSectionTitle = memo(({ eyebrow, title, subtitle }: ProductSe
     {subtitle && (
       <p style={{
         marginTop: '14px',
-        fontFamily: "var(--font-cormorant),'Cormorant Garamond',Georgia,serif",
+        fontFamily: "var(--font-dmsans),'DM Sans',system-ui,sans-serif",
         fontStyle: 'italic',
         fontSize: 'clamp(0.95rem, 2vw, 1.1rem)',
         color: 'rgba(31,24,16,.55)',

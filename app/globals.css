@@ -10,8 +10,12 @@
 :root {
 
   /* ── Fonts ──────────────────────────────────── */
-  --font-main: var(--font-bodoni), serif;
-  --font-playfair: var(--font-cormorant);
+  /* Storefront is ALL sans (DM Sans): the old serif aliases resolve here so
+     every heading/body/price inherits the clean font with zero per-page edits.
+     Admin keeps its serif look via the .admin-scope restore below. */
+  --font-main: var(--font-dmsans), system-ui, sans-serif;
+  --font-playfair: var(--font-dmsans), system-ui, sans-serif;
+  --font-heading: var(--font-dmsans), system-ui, sans-serif;
   --font-montserrat: var(--font-dmsans);
   --font-jost: var(--font-dmsans);
 
@@ -71,6 +75,9 @@
   --input: 0 0% 77%;
   --ring: 15 12% 50%;
 }
+
+/* Admin also uses the same clean sans now (storefront + back office unified).
+   The old serif aliases resolve to DM Sans everywhere; nothing to restore. */
 
 html {
   scroll-behavior: auto;

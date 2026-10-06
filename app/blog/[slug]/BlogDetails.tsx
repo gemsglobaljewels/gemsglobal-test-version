@@ -269,7 +269,7 @@ export default function BlogDetails({
         <div style={{ textAlign: "center", padding: "200px 24px" }}>
           <h2
             style={{
-              fontFamily: "Cormorant Garamond",
+              fontFamily: "var(--font-dmsans),'DM Sans',system-ui,sans-serif",
               fontSize: 32,
               marginBottom: 20,
             }}

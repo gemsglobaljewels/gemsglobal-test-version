@@ -57,7 +57,7 @@ export function RecentlyViewed() {
           margin-bottom: 40px;
         }
         .recent-viewed-title {
-          font-family: 'Cormorant Garamond', serif;
+          font-family: var(--font-dmsans),'DM Sans',system-ui,sans-serif;
           font-size: 32px;
           font-weight: 300;
           color: var(--c-text, #2C231E);

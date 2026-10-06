@@ -756,7 +756,7 @@ export default function TestimonialsSection() {
             margin: 0,
             padding: isMobile ? '48px 0 16px' : '56px 0 24px',
             textAlign: 'center',
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontFamily: "var(--font-dmsans),'DM Sans',system-ui,sans-serif",
             fontSize: isMobile ? 12 : 15,
             fontWeight: 400,
             letterSpacing: isMobile ? '0.42em' : '0.55em',

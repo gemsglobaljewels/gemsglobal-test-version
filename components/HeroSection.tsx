@@ -502,7 +502,7 @@ const CSS = `
 
 .lh-h__sm {
   display: block;
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-dmsans),'DM Sans',system-ui,sans-serif;
   font-size: clamp(18px, 2.2vw, 38px);
   font-weight: 300;
   line-height: 1.2;
@@ -511,7 +511,7 @@ const CSS = `
 }
 .lh-h__md {
   display: block;
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-dmsans),'DM Sans',system-ui,sans-serif;
   font-size: clamp(34px, 4.5vw, 76px);
   font-weight: 400;
   line-height: 1.04;
@@ -522,7 +522,7 @@ const CSS = `
 }
 .lh-h__accent {
   display: inline-block;
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-dmsans),'DM Sans',system-ui,sans-serif;
   font-style: italic;
   font-weight: 600;
   font-size: clamp(52px, 7.5vw, 128px);

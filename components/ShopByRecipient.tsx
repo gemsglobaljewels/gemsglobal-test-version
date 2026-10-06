@@ -231,7 +231,7 @@ const CSS = `
 
 .sbr-name {
   margin: 0;
-  font-family: 'Cormorant Garamond', 'Cormorant', Georgia, 'Times New Roman', serif;
+  font-family: var(--font-dmsans),'DM Sans',system-ui,sans-serif;
   font-size: clamp(14px, 1.6vw, 18px);
   font-weight: 600;
   color: #1a1714;

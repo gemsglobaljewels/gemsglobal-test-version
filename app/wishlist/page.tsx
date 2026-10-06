@@ -78,6 +78,7 @@ const CSS = `
 .wl-head-right{display:flex;align-items:flex-end;gap:clamp(16px,2.6vw,28px);padding-bottom:4px;}
 .wl-stat{text-align:right;}
 .wl-stat-num{font-family:var(--font-main);font-style:italic;font-size:clamp(28px,4.2vw,44px);line-height:1;color:var(--c-text);}
+.wl-stat-num--price{font-family:var(--font-montserrat);font-style:normal;font-weight:800;color:#111;font-variant-numeric:tabular-nums;}
 .wl-stat-num span{color:var(--c-accent);font-style:normal;}
 .wl-stat-label{display:block;margin-top:8px;font-family:var(--font-montserrat);font-size:9px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--c-text-faint);}
 .wl-stat-div{width:1px;align-self:stretch;background:var(--wl-hair-strong);}
@@ -99,10 +100,11 @@ const CSS = `
 .wl-btn{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-montserrat);font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;cursor:pointer;text-decoration:none;border-radius:999px;transition:.3s;white-space:nowrap;}
 .wl-btn>*{position:relative;z-index:1;}
 .wl-btn-ghost{padding:12px 22px;border:1px solid var(--wl-hair-strong);background:transparent;color:var(--c-accent);}
-.wl-btn-ghost:hover{border-color:var(--c-accent);background:rgba(var(--c-accent-rgb),.07);}
-.wl-btn-solid{padding:13px 26px;border:1px solid var(--c-accent);background:var(--c-accent);color:#fff;}
-.wl-btn-solid::before{content:'';position:absolute;inset:0;background:var(--c-text);transform:scaleX(0);transform-origin:left;transition:transform .45s cubic-bezier(.25,.46,.45,.94);z-index:0;}
+.wl-btn-ghost:hover{border-color:transparent;background:#1F1811;color:#fff;transform:translateY(-2px);box-shadow:0 14px 28px -14px rgba(58,46,34,.5);}
+.wl-btn-solid{padding:13px 26px;border:1px solid transparent;background:linear-gradient(135deg,#8C7456,#6F5A42);color:#fff;box-shadow:0 12px 26px -12px rgba(140,116,86,.7);}
+.wl-btn-solid::before{content:'';position:absolute;inset:0;background:#1F1811;transform:scaleX(0);transform-origin:left;transition:transform .45s cubic-bezier(.25,.46,.45,.94);z-index:0;}
 .wl-btn-solid:hover::before{transform:scaleX(1);}
+.wl-btn-solid:hover{transform:translateY(-2px);box-shadow:0 18px 34px -14px rgba(58,46,34,.5);}
 .wl-btn svg{transition:transform .35s;}
 .wl-btn:hover svg{transform:translateX(3px);}
 
@@ -147,7 +149,7 @@ const CSS = `
 .wl-cat{font-family:var(--font-montserrat);font-size:8.5px;font-weight:600;letter-spacing:.26em;text-transform:uppercase;color:var(--c-accent);}
 .wl-name{font-family:var(--font-playfair);font-size:clamp(17px,1.6vw,20px);font-weight:500;line-height:1.2;color:var(--c-text);text-decoration:none;transition:color .25s;}
 .wl-name:hover{color:var(--c-accent);}
-.wl-price{margin-top:3px;display:flex;align-items:center;gap:10px;font-family:var(--font-main);font-size:clamp(16px,1.5vw,19px);font-weight:500;color:var(--c-text);}
+.wl-price{margin-top:3px;display:flex;align-items:center;gap:10px;font-family:var(--font-montserrat);font-size:clamp(16px,1.5vw,19px);font-weight:800;color:#111;font-variant-numeric:tabular-nums;}
 .wl-oos{font-family:var(--font-montserrat);font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--c-error);}
 
 /* ══ LIST VIEW ══════════════════════════════════════════════ */
@@ -172,7 +174,7 @@ const CSS = `
 .wl-row-cat{font-family:var(--font-montserrat);font-size:8.5px;font-weight:600;letter-spacing:.26em;text-transform:uppercase;color:var(--c-accent);}
 .wl-row-name{font-family:var(--font-playfair);font-size:clamp(18px,1.8vw,22px);font-weight:500;color:var(--c-text);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .25s;}
 .wl-row-name:hover{color:var(--c-accent);}
-.wl-row-price{margin-top:3px;display:flex;align-items:center;gap:12px;font-family:var(--font-main);font-size:clamp(17px,1.6vw,20px);font-weight:500;color:var(--c-text);}
+.wl-row-price{margin-top:3px;display:flex;align-items:center;gap:12px;font-family:var(--font-montserrat);font-size:clamp(17px,1.6vw,20px);font-weight:800;color:#111;font-variant-numeric:tabular-nums;}
 .wl-row-actions{grid-area:actions;display:flex;align-items:center;gap:10px;padding-right:clamp(16px,2vw,24px);}
 .wl-icon-btn{display:grid;place-items:center;width:42px;height:42px;flex-shrink:0;border-radius:50%;border:1px solid var(--wl-hair-strong);background:transparent;color:var(--c-accent);text-decoration:none;cursor:pointer;transition:.25s;}
 .wl-icon-btn:hover{border-color:var(--c-accent);background:rgba(var(--c-accent-rgb),.08);}
@@ -195,6 +197,7 @@ const CSS = `
 }
 .wl-summary-info{font-family:var(--font-playfair);font-style:italic;font-size:clamp(16px,2vw,22px);color:var(--c-text-muted);}
 .wl-summary-info em{font-style:normal;color:var(--c-accent);}
+.wl-summary-info em.wl-sum-val{color:#111;font-weight:800;font-family:var(--font-montserrat);font-variant-numeric:tabular-nums;}
 .wl-summary-actions{display:flex;gap:12px;flex-wrap:wrap;}
 
 /* ══ EMPTY STATE ════════════════════════════════════════════ */
@@ -465,7 +468,7 @@ export default function WishlistPage() {
                   </div>
                   <div className="wl-stat-div" aria-hidden="true" />
                   <div className="wl-stat">
-                    <div className="wl-stat-num"><Price value={totalValue} /></div>
+                    <div className="wl-stat-num wl-stat-num--price"><Price value={totalValue} /></div>
                     <span className="wl-stat-label">Total value</span>
                   </div>
                 </div>
@@ -639,7 +642,7 @@ export default function WishlistPage() {
               <div className="wl-summary">
                 <p className="wl-summary-info">
                   <em>{wishlist.length}</em> {wishlist.length === 1 ? "piece" : "pieces"} saved
-                  {" · "}total value <em><Price value={totalValue} /></em>
+                  {" · "}total value <em className="wl-sum-val"><Price value={totalValue} /></em>
                 </p>
                 <div className="wl-summary-actions">
                   <Link href="/collection" className="wl-btn wl-btn-ghost">
