@@ -1150,19 +1150,40 @@ function FilterPanel({
   );
 }
 
+/* ─── Reads URL filters on the client and reports them up ──────────────────
+   This tiny component owns the ONLY useSearchParams() call on this route,
+   isolated in its own Suspense boundary — so the product grid (fed by
+   server-rendered initialProducts) paints on first paint instead of bailing
+   the whole page to client-only rendering (blank shell + 8s fetch). */
+function UrlFilterSync({ onSync }: { onSync: (f: Record<string, string>) => void }) {
+  const searchParams = useSearchParams();
+  const onSyncRef = useRef(onSync);
+  onSyncRef.current = onSync;
+  useEffect(() => {
+    onSyncRef.current({
+      category: searchParams.get('category') || 'All',
+      metal: searchParams.get('metal') || 'All',
+      style: searchParams.get('style') || 'All',
+      shape: searchParams.get('shape') || 'All',
+      minPrice: searchParams.get('minPrice') || '',
+      maxPrice: searchParams.get('maxPrice') || '',
+      sort: searchParams.get('sort') || 'newest',
+      page: searchParams.get('page') || '',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+  return null;
+}
+
 /* ─── Inner component that uses searchParams ───────────────────── */
 function CollectionDetailsInner({ initialProducts }: { initialProducts: any[] }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const [products, setProducts] = useState<any[]>(initialProducts);
-  const [loading, setLoading] = useState(
-    (searchParams.get('category') || 'All') !== 'All' ||
-    (searchParams.get('metal') || 'All') !== 'All' ||
-    (searchParams.get('style') || 'All') !== 'All' ||
-    (searchParams.get('shape') || 'All') !== 'All'
-  );
+  // SSR paints products immediately; the URL sync below fetches only when the
+  // URL actually carries filters that initialProducts don't represent.
+  const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [columns, setColumns] = useState<2 | 3 | 4>(3);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -1172,16 +1193,16 @@ function CollectionDetailsInner({ initialProducts }: { initialProducts: any[] })
   const [wishlist, setWishlist] = useState<Set<string>>(new Set());
   const [categories, setCategories] = useState<any[]>([]);
 
-  const [category, setCategory] = useState(searchParams.get('category') || 'All');
-  const [metal, setMetal] = useState(searchParams.get('metal') || 'All');
-  const [style, setStyle] = useState(searchParams.get('style') || 'All');
-  const [shape, setShape] = useState(searchParams.get('shape') || 'All');
+  const [category, setCategory] = useState('All');
+  const [metal, setMetal] = useState('All');
+  const [style, setStyle] = useState('All');
+  const [shape, setShape] = useState('All');
   const [styleOptions, setStyleOptions] = useState<{ key: string; name: string }[]>([]);
   const [shapeOptions, setShapeOptions] = useState<{ key: string; name: string }[]>([]);
-  const [minPrice, setMinPrice] = useState(searchParams.get('minPrice') || '');
-  const [maxPrice, setMaxPrice] = useState(searchParams.get('maxPrice') || '');
-  const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'newest');
-  const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sortBy, setSortBy] = useState('newest');
+  const [page, setPage] = useState(1);
   const itemsPerPage = 12;
   const didMountRef = useRef(false);
 
@@ -1222,6 +1243,24 @@ function CollectionDetailsInner({ initialProducts }: { initialProducts: any[] })
   useEffect(() => {
     fetchWishlist();
   }, []);
+  // Applies ?category=&metal=&… once the client-side URL sync resolves (see
+  // <UrlFilterSync/> below). The existing filter effect then fetches, without
+  // resetting a deep-linked ?page= on first sync.
+  const syncedRef = useRef(false);
+  const applyUrlFilters = useCallback((f: Record<string, string>) => {
+    syncedRef.current = true;
+    setCategory(f.category || 'All');
+    setMetal(f.metal || 'All');
+    setStyle(f.style || 'All');
+    setShape(f.shape || 'All');
+    setMinPrice(f.minPrice || '');
+    setMaxPrice(f.maxPrice || '');
+    setSortBy(f.sort || 'newest');
+    if (f.page) {
+      const pg = Number(f.page);
+      if (Number.isFinite(pg) && pg > 0) setPage(pg);
+    }
+  }, []);
   useEffect(() => {
     // Skip the mount run — the server-rendered initialProducts already match the
     // unfiltered view, so refetching on mount only flashes the skeleton/count (the
@@ -1232,13 +1271,21 @@ function CollectionDetailsInner({ initialProducts }: { initialProducts: any[] })
       if (category !== 'All' || metal !== 'All' || style !== 'All' || shape !== 'All') fetchProducts();
       return;
     }
+    if (syncedRef.current) {
+      // Initial URL sync (not a user edit) — keep a deep-linked ?page=.
+      syncedRef.current = false;
+      fetchProducts();
+      return;
+    }
     setPage(1);
     fetchProducts();
   }, [category, metal, style, shape, sortBy]);
 
+  // One automatic retry: a single transient failure (cold start, blip) must
+  // never blank the grid — and an HTTP error is retried, not swallowed.
   async function fetchProducts() {
     setLoading(true);
-    try {
+    const buildUrl = () => {
       const p = new URLSearchParams();
       if (category !== 'All') p.append('category', category);
       if (metal !== 'All') p.append('metal', metal);
@@ -1246,10 +1293,23 @@ function CollectionDetailsInner({ initialProducts }: { initialProducts: any[] })
       if (shape !== 'All') p.append('shape', shape);
       p.append('sort', sortBy);
       p.append('limit', '1000'); // Get all products
-      const res = await fetch(`/api/products?${p.toString()}`, { cache: 'no-store' });
+      return `/api/products?${p.toString()}`;
+    };
+    const loadOnce = async () => {
+      const res = await fetch(buildUrl(), { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Catalog request failed (${res.status})`);
       const data = await res.json();
       setProducts(Array.isArray(data) ? data : (data.products || []));
-    } catch (err) { console.error(err); }
+    };
+    try {
+      await loadOnce();
+    } catch (err) {
+      console.error(err);
+      try {
+        await new Promise(r => setTimeout(r, 900));
+        await loadOnce();
+      } catch (err2) { console.error(err2); }
+    }
     finally { setLoading(false); }
   }
 
@@ -1294,7 +1354,9 @@ function CollectionDetailsInner({ initialProducts }: { initialProducts: any[] })
   const pagerItems = getPaginationItems(page, totalPages);
 
   const updateURL = (nc?: string, nm?: string, ns?: string, nsort?: string, npage?: number, nmin?: string, nmax?: string, nshape?: string) => {
-    const p = new URLSearchParams(searchParams);
+    // Read the live URL (client-only call sites) instead of the
+    // render-time hook, so this file stays SSR-friendly.
+    const p = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search);
     if (nc !== undefined) { if (nc === 'All') p.delete('category'); else p.set('category', nc); }
     if (nm !== undefined) { if (nm === 'All') p.delete('metal'); else p.set('metal', nm); }
     if (ns !== undefined) { if (ns === 'All') p.delete('style'); else p.set('style', ns); }
@@ -1356,6 +1418,11 @@ function CollectionDetailsInner({ initialProducts }: { initialProducts: any[] })
   return (
     <div className="lx-root">
       <style>{CSS}</style>
+      {/* URL filter sync lives in its own Suspense so the grid (fed by
+          server-rendered initialProducts) paints on first paint. */}
+      <Suspense fallback={null}>
+        <UrlFilterSync onSync={applyUrlFilters} />
+      </Suspense>
       <HeaderMegaMenu />
 
       {/* Breadcrumb */}

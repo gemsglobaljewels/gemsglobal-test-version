@@ -17,19 +17,21 @@ const DEFAULT_SHAPES = [
 ]
 
 export async function GET() {
+    // Rarely-changing lookup data — safe for a few minutes on the edge.
+    const cache = { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } }
     try {
         const { data, error } = await supabaseServer
             .from('diamond_shapes')
             .select('key, name, sub, image, model_3d, is_enabled')
             .order('name', { ascending: true })
         if (error) {
-            return NextResponse.json(DEFAULT_SHAPES)
+            return NextResponse.json(DEFAULT_SHAPES, cache)
         }
         const rows = Array.isArray(data) ? data : []
-        if (rows.length === 0) return NextResponse.json(DEFAULT_SHAPES)
-        return NextResponse.json(rows)
+        if (rows.length === 0) return NextResponse.json(DEFAULT_SHAPES, cache)
+        return NextResponse.json(rows, cache)
     } catch {
-        return NextResponse.json(DEFAULT_SHAPES)
+        return NextResponse.json(DEFAULT_SHAPES, cache)
     }
 }
 

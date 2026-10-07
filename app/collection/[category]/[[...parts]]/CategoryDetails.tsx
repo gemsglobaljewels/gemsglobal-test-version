@@ -1114,32 +1114,45 @@ function CategoryPageInner() {
   }, [categories, categorySlug]);
 
   // Fetch products when category resolved
-  // Safety: if categories loaded but the slug matches nothing, stop the
-  // skeleton instead of spinning forever (shows the empty state + retry).
+  // Fetch products when category resolved (one automatic retry — a single
+  // transient failure must never blank the grid; HTTP errors are retried,
+  // and an unresolvable slug stops the skeleton via the guard above).
   const fetchProducts = useCallback(async () => {
     if (!currentCategory) { if (categories.length > 0) setLoading(false); return; }
     setLoading(true);
-    try {
+    const buildUrl = () => {
       const p = new URLSearchParams();
       if (metal !== 'All') p.append('metal', metal);
       if (style !== 'All') p.append('style', style);
       if (shape !== 'All') p.append('shape', shape);
       p.append('sort', sortBy);
       p.append('limit', '1000');
-      const res = await fetch(`/api/products?${p.toString()}`, { cache: 'no-store' });
+      return `/api/products?${p.toString()}`;
+    };
+    const loadOnce = async () => {
+      const res = await fetch(buildUrl(), { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Catalog request failed (${res.status})`);
       const data = await res.json();
-      let all = Array.isArray(data) ? data : (data.products || []);
-
+      return Array.isArray(data) ? data : (data.products || []);
+    };
+    const applyCategoryFilter = (list: any[]) => {
       const isChild = !!currentCategory.parent_category_id;
       if (isChild) {
-        all = all.filter((p: any) => (p.category_id || p.categories?.id) === currentCategory.id);
-      } else {
-        const childIds = childCategories.map((c: any) => c.id);
-        const ids = [currentCategory.id, ...childIds];
-        all = all.filter((p: any) => ids.includes(p.category_id || p.categories?.id));
+        return list.filter((p: any) => (p.category_id || p.categories?.id) === currentCategory.id);
       }
-      setProducts(all);
-    } catch (err) { console.error(err); }
+      const childIds = childCategories.map((c: any) => c.id);
+      const ids = [currentCategory.id, ...childIds];
+      return list.filter((p: any) => ids.includes(p.category_id || p.categories?.id));
+    };
+    try {
+      setProducts(applyCategoryFilter(await loadOnce()));
+    } catch (err) {
+      console.error(err);
+      try {
+        await new Promise(r => setTimeout(r, 900));
+        setProducts(applyCategoryFilter(await loadOnce()));
+      } catch (err2) { console.error(err2); }
+    }
     finally { setLoading(false); }
   }, [currentCategory, childCategories, categories, metal, style, shape, sortBy]);
 

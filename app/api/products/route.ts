@@ -304,7 +304,11 @@ export async function GET(request: NextRequest) {
     limit,
     totalPages: Math.ceil(total / limit)
   }, {
-    headers: { 'Cache-Control': 'no-store' }
+    // Catalog reads are non-personalized: edge-cache briefly so repeat visits
+    // and filter flips resolve in milliseconds instead of re-running 5+ DB
+    // queries every time. Queries (filters/sort/search) partition the cache.
+    // Mutations (POST/PUT/DELETE) are never cached.
+    headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' }
   })
 }
 

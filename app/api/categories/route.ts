@@ -56,7 +56,10 @@ export async function GET(request: NextRequest) {
       !homeOnly || cat.show_on_home === true || (String(cat.image_url || '').trim() !== '' && (cat.product_count || 0) > 0)
     ) || []
 
-    return NextResponse.json(enrichedCategories)
+    return NextResponse.json(enrichedCategories, {
+      // Rarely-changing lookup data — safe for a few minutes on the edge.
+      headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' },
+    })
   } catch (error: any) {
     console.error('GET /api/categories error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })

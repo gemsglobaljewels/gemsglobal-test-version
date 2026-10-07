@@ -12,6 +12,8 @@ const DEFAULT_STYLES = [
 ]
 
 export async function GET() {
+    // Rarely-changing lookup data — safe for a few minutes on the edge.
+    const cache = { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } }
     try {
         const { data, error } = await supabaseServer
             .from('ring_styles')
@@ -19,7 +21,7 @@ export async function GET() {
             .order('name', { ascending: true })
         if (error) {
             // Table may not exist yet; fall back to defaults
-            return NextResponse.json(DEFAULT_STYLES)
+            return NextResponse.json(DEFAULT_STYLES, cache)
         }
         const rows = (Array.isArray(data) ? data : []).map((row, i) => {
             if (!row.image) {
@@ -29,10 +31,10 @@ export async function GET() {
             }
             return row
         })
-        if (rows.length === 0) return NextResponse.json(DEFAULT_STYLES)
-        return NextResponse.json(rows)
+        if (rows.length === 0) return NextResponse.json(DEFAULT_STYLES, cache)
+        return NextResponse.json(rows, cache)
     } catch {
-        return NextResponse.json(DEFAULT_STYLES)
+        return NextResponse.json(DEFAULT_STYLES, cache)
     }
 }
 

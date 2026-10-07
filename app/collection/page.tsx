@@ -1,7 +1,6 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
 import CollectionDetails from "./CollectionDetails";
-import { createClient } from "@supabase/supabase-js";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 // Initial catalog list is non-personalized; cache it across requests (ISR) so
@@ -10,10 +9,9 @@ import { supabaseServer } from "@/lib/supabaseServer";
 export const revalidate = 300;
 
 async function getInitialProducts() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // Service role throughout: the anon reviews policy is unreliable, and SSR
+  // must never come back empty because of an RLS hiccup.
+  const supabase = supabaseServer;
 
   const { data, error } = await supabase
     .from("products")
