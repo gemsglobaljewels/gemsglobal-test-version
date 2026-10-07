@@ -360,7 +360,6 @@ const CSS = `
    KEYFRAMES
 ─────────────────────────────────────────── */
 @keyframes lh-pulse   { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.6)} }
-@keyframes lh-shimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
 
 /* ───────────────────────────────────────────
    SECTION ROOT
@@ -448,6 +447,7 @@ const CSS = `
 /* ── TOP BAR ── */
 .lh-topbar {
   padding: clamp(20px, 3vw, 36px) clamp(24px, 5vw, 72px);
+  display: flex; justify-content: center;
 }
 
 /* Kicker badge — darkened background so the white label stays legible
@@ -455,12 +455,16 @@ const CSS = `
 .lh-kicker {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  row-gap: 4px;
   gap: 8px;
   padding: 7px 16px 7px 11px;
   background: rgba(10,8,6,.42);
   border: 1px solid rgba(255,255,255,.16);
   border-radius: 100px;
   width: fit-content;
+  max-width: 100%;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -479,15 +483,20 @@ const CSS = `
   text-transform: uppercase;
   color: var(--white-70);
   font-weight: 400;
+  /* keep the pill symmetric + allow long kicker text to wrap, never clip */
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 .lh-kicker__sep { color: rgba(201,169,110,.55); font-size: 10px; }
 
-/* ── HERO TEXT (grows to fill space, aligns bottom) ── */
+/* ── HERO TEXT (grows to fill space, aligns bottom, centered) ── */
 .lh-hero-text {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  align-items: center;
+  text-align: center;
   padding: 0 clamp(24px, 5vw, 72px) clamp(16px, 2.5vw, 28px);
   gap: clamp(14px, 2vw, 22px);
 }
@@ -496,6 +505,10 @@ const CSS = `
 .lh-headline {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
+  text-wrap: balance;
+  max-width: min(100%, 900px);
   gap: 0;
   margin: 0;
 }
@@ -508,17 +521,21 @@ const CSS = `
   line-height: 1.2;
   color: var(--white-45);
   letter-spacing: .02em;
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
 .lh-h__md {
   display: block;
   font-family: var(--font-dmsans),'DM Sans',system-ui,sans-serif;
   font-size: clamp(34px, 4.5vw, 76px);
-  font-weight: 400;
+  font-weight: 500;
   line-height: 1.04;
   color: var(--white);
   letter-spacing: -.01em;
   margin-top: clamp(2px, 0.3vw, 6px);
   text-shadow: 0 2px 32px rgba(0,0,0,.30);
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
 .lh-h__accent {
   display: inline-block;
@@ -529,10 +546,10 @@ const CSS = `
   line-height: .86;
   letter-spacing: -.04em;
   margin-top: clamp(2px, 0.2vw, 6px);
-  /* Static gold gradient with a single shimmer sweep on entrance instead of
-     an infinite loop — quieter, and removes a continuously-running
-     background-position animation (the other big non-composited offender
-     in the Lighthouse report) */
+  /* Static gold gradient (no travelling sweep): transparent-filled display
+     text only ever paints where the gradient covers — a moving background
+     can leave the last glyph unpainted, looking "cut". Padding gives the
+     italic overhang breathing room; negative margin keeps optical center. */
   background: linear-gradient(
     115deg,
     #B8893A 0%,
@@ -542,59 +559,73 @@ const CSS = `
     #9A6E2A 82%,
     #C9A96E 100%
   );
-  background-size: 280% auto;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: lh-shimmer 1.6s ease-out 1.1s 1 both;
+  padding-right: .08em;
+  margin-right: -.08em;
 }
 
 /* Meta + CTA */
 .lh-body {
   display: flex;
   align-items: center;
+  justify-content: center;
+  text-align: center;
   gap: clamp(16px, 2.5vw, 36px);
   flex-wrap: wrap;
+  max-width: 100%;
 }
+/* motion wrappers are flex items — let them shrink so long content wraps
+   instead of overflowing the hero's clipped bounds */
+.lh-body > * { min-width: 0; max-width: 100%; }
 
 .lh-meta {
   margin: 0;
   font-family: 'Jost', sans-serif;
-  font-size: 9px;
-  letter-spacing: .22em;
+  font-size: 10px;
+  letter-spacing: .2em;
   text-transform: uppercase;
-  color: var(--white-45);
-  font-weight: 300;
+  color: var(--white-70);
+  font-weight: 500;
+  /* never clip: flex children default to min-width:auto which overflows
+     instead of wrapping — allow shrink + wrap anywhere in long meta lines */
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  /* tracked centered text carries trailing space — compensate for true optical center */
+  padding-left: .22em;
 }
 
-/* Button — glass outline style on dark */
+/* Button — solid theme-gold plate + ink wipe, same CTA language as
+   Add to Bag / Checkout across the site */
 .lh-btn {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 13px 28px;
+  padding: 15px 32px;
   font-family: 'Jost', sans-serif;
-  font-size: 9.5px;
-  letter-spacing: .28em;
+  font-size: 10px;
+  letter-spacing: .26em;
   text-transform: uppercase;
-  font-weight: 500;
-  color: var(--white);
+  font-weight: 700;
+  color: #fff;
   text-decoration: none;
-  border: 1px solid rgba(201,169,110,.55);
+  border: none;
   border-radius: 3px;
   overflow: hidden;
-  background: rgba(201,169,110,.10);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: color .36s, border-color .36s, transform .22s, box-shadow .28s, background .36s;
+  background: linear-gradient(135deg, #8C7456, #6F5A42);
+  box-shadow: 0 14px 32px -12px rgba(0,0,0,.55);
+  transition: transform .22s, box-shadow .28s;
   cursor: pointer;
   width: fit-content;
+  max-width: 100%;
 }
 .lh-btn__fill {
   position: absolute;
   inset: 0;
-  background: var(--gold);
+  background: #1A1209;
   transform: scaleX(0);
   transform-origin: left;
   transition: transform .44s var(--ease-out);
@@ -607,11 +638,11 @@ const CSS = `
   transition: transform .3s;
 }
 .lh-btn:hover {
-  color: #1A1209;
-  border-color: var(--gold);
-  transform: translateY(-1px);
-  box-shadow: 0 12px 36px rgba(201,169,110,.28);
-  background: transparent;
+  color: #fff;
+  border-color: transparent;
+  transform: translateY(-2px);
+  box-shadow: 0 20px 44px -12px rgba(0,0,0,.6);
+  background: linear-gradient(135deg, #8C7456, #6F5A42);
 }
 .lh-btn:hover .lh-btn__fill  { transform: scaleX(1); }
 .lh-btn:hover .lh-btn__arrow { transform: translateX(4px); }
@@ -623,7 +654,8 @@ const CSS = `
 .lh-pagination {
   position: absolute;
   bottom: clamp(20px, 3vw, 36px);
-  right: clamp(24px, 5vw, 72px);
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 4;
   display: flex;
   gap: 10px;
@@ -665,10 +697,10 @@ const CSS = `
   .lh-h__sm     { font-size: clamp(15px, 4.5vw, 24px); }
   .lh-h__md     { font-size: clamp(28px, 8vw, 48px); }
   .lh-h__accent { font-size: clamp(44px, 13vw, 80px); }
-  .lh-body      { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .lh-body      { flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
   .lh-meta      { font-size: 8px; }
   .lh-btn       { padding: 11px 22px; font-size: 8.5px; }
-  .lh-pagination { right: 18px; bottom: 18px; }
+  .lh-pagination { bottom: 18px; }
 }
 
 @media (max-width: 430px) {
@@ -678,7 +710,7 @@ const CSS = `
   .lh-h__sm     { font-size: clamp(14px, 5vw, 20px); }
   .lh-h__md     { font-size: clamp(24px, 9vw, 40px); }
   .lh-h__accent { font-size: clamp(40px, 14.5vw, 68px); }
-  .lh-pagination { right: 14px; bottom: 14px; }
+  .lh-pagination { bottom: 14px; }
 }
 
 /* Landscape / short screens */

@@ -58,12 +58,11 @@ export default function ShopByCategory({ initialCategories }: { initialCategorie
   const hasInitial = Array.isArray(initialCategories) && initialCategories.length > 0;
   const [cats, setCats] = useState<Category[]>(hasInitial ? initialCategories! : FALLBACK);
 
-  /* Drag-to-scroll state */
+  /* Drag-to-scroll state — mouse only (touch uses native overflow scrolling).
+     No pointer capture: capturing retargets the subsequent click away from
+     the <Link>, silently killing tap navigation on touch devices. */
   const trackRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
-  const startX = useRef(0);
-  const scrollLeft = useRef(0);
-  const didDrag = useRef(false);
+  const dragState = useRef({ active: false, moved: false, startX: 0, startY: 0, scrollLeft: 0 });
 
   /* Fetch real categories — skipped when the server already provided them,
      so we never overwrite good initial data with a flash. */
@@ -87,38 +86,43 @@ export default function ShopByCategory({ initialCategories }: { initialCategorie
   }, []);
 
   /* ── Pointer drag handlers ──────────────────────── */
+  /* ── Pointer drag handlers (mouse only) ────────────────────────
+     A tap counts as a drag only past 10px of mostly-horizontal movement;
+     anything less falls through to the <Link>'s native navigation, which
+     works even before hydration. No pointer capture: capturing retargets
+     the subsequent click away from the <Link>, silently killing taps
+     (especially touch). Touch uses native overflow scrolling. */
   const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== 'mouse') return;
     const el = trackRef.current;
     if (!el) return;
-    isDragging.current = true;
-    didDrag.current = false;
-    startX.current = e.clientX;
-    scrollLeft.current = el.scrollLeft;
-    el.setPointerCapture(e.pointerId);
-    el.style.cursor = 'grabbing';
+    dragState.current = { active: true, moved: false, startX: e.clientX, startY: e.clientY, scrollLeft: el.scrollLeft };
   }, []);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isDragging.current || !trackRef.current) return;
-    const dx = e.clientX - startX.current;
-    if (Math.abs(dx) > 4) didDrag.current = true;
-    trackRef.current.scrollLeft = scrollLeft.current - dx;
-  }, []);
-
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
-    isDragging.current = false;
-    if (trackRef.current) {
-      trackRef.current.releasePointerCapture(e.pointerId);
-      trackRef.current.style.cursor = '';
+    const st = dragState.current;
+    const el = trackRef.current;
+    if (!st.active || !el || e.pointerType !== 'mouse') return;
+    const dx = e.clientX - st.startX;
+    const dy = e.clientY - st.startY;
+    if (!st.moved && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      st.moved = true;
+    }
+    if (st.moved) {
+      el.scrollLeft = st.scrollLeft - dx;
     }
   }, []);
 
-  /* A drag-scroll gesture ends with a click on the card — suppress the
-     navigation in that case so dragging never fires a page change. A clean
-     tap (no drag) falls through to the <Link>'s native navigation, which
-     works even before hydration. */
+  const endDrag = useCallback(() => {
+    dragState.current.active = false;
+    dragState.current.moved = false;
+  }, []);
+
   const onCardClick = useCallback((e: React.MouseEvent) => {
-    if (didDrag.current) e.preventDefault();
+    if (dragState.current.moved) {
+      e.preventDefault();
+      dragState.current.moved = false;
+    }
   }, []);
 
   return (
@@ -134,8 +138,8 @@ export default function ShopByCategory({ initialCategories }: { initialCategorie
         className="sbc2-track"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
       >
         {cats.map((cat) => (
           <Link

@@ -175,45 +175,49 @@ export default function GiftGuideContent({
       }))
   }, [allCategories, config.category_visibility])
 
-  /* ── "Shop by Category" drag-to-scroll slider (mirrors the homepage rail) ── */
+  /* ── "Shop by Category" drag-to-scroll slider (mirrors the homepage rail) ──
+     Mouse-only manual drag (touch uses native overflow scrolling) with no
+     pointer capture: capturing retargets the subsequent click away from the
+     card, silently killing tap navigation on touch devices. A tap counts as
+     a drag only past 10px of mostly-horizontal movement. */
   const router = useRouter()
   const catTrackRef = useRef<HTMLDivElement>(null)
-  const catDragging = useRef(false)
-  const catStartX = useRef(0)
-  const catScrollLeft = useRef(0)
-  const catDidDrag = useRef(false)
+  const catDrag = useRef({ active: false, moved: false, startX: 0, startY: 0, scrollLeft: 0 })
 
   const onCatPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== 'mouse') return
     const el = catTrackRef.current
     if (!el) return
-    catDragging.current = true
-    catDidDrag.current = false
-    catStartX.current = e.clientX
-    catScrollLeft.current = el.scrollLeft
-    el.setPointerCapture(e.pointerId)
-    el.style.cursor = 'grabbing'
+    catDrag.current = { active: true, moved: false, startX: e.clientX, startY: e.clientY, scrollLeft: el.scrollLeft }
   }, [])
 
   const onCatPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!catDragging.current || !catTrackRef.current) return
-    const dx = e.clientX - catStartX.current
-    if (Math.abs(dx) > 4) catDidDrag.current = true
-    catTrackRef.current.scrollLeft = catScrollLeft.current - dx
+    const st = catDrag.current
+    const el = catTrackRef.current
+    if (!st.active || !el || e.pointerType !== 'mouse') return
+    const dx = e.clientX - st.startX
+    const dy = e.clientY - st.startY
+    if (!st.moved && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      st.moved = true
+    }
+    if (st.moved) {
+      el.scrollLeft = st.scrollLeft - dx
+    }
   }, [])
 
-  const onCatPointerUp = useCallback((e: React.PointerEvent) => {
-    catDragging.current = false
-    const el = catTrackRef.current
-    if (el) {
-      el.releasePointerCapture(e.pointerId)
-      el.style.cursor = ''
-    }
+  const endCatDrag = useCallback(() => {
+    catDrag.current.active = false
+    catDrag.current.moved = false
   }, [])
 
   /* suppress navigation when the pointer-up ends a drag, not a tap */
   const goCategory = useCallback(
     (link: string) => {
-      if (!catDidDrag.current) router.push(link)
+      if (catDrag.current.moved) {
+        catDrag.current.moved = false
+        return
+      }
+      router.push(link)
     },
     [router]
   )
@@ -443,8 +447,8 @@ export default function GiftGuideContent({
               data-reveal
               onPointerDown={onCatPointerDown}
               onPointerMove={onCatPointerMove}
-              onPointerUp={onCatPointerUp}
-              onPointerCancel={onCatPointerUp}
+              onPointerUp={endCatDrag}
+              onPointerCancel={endCatDrag}
             >
               {categoryCards.map((c) => (
                 <article

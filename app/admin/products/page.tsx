@@ -8,7 +8,7 @@ import {
   Diamond, Package, Gem, Zap, ChevronDown
 } from 'lucide-react'
 import { resolveAdminFxRate } from '@/lib/adminRate'
-import { startingRetailPrice } from '@/components/ProductCard'
+import { startingRetailPrice } from '@/lib/variantPricing'
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<any[]>([])
