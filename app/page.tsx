@@ -65,17 +65,27 @@ const DEFAULT_SHAPES = [
 
 async function getHomeCategories() {
     try {
+        // Show flagged categories PLUS any real collection (has image + products)
+        // so new admin uploads surface automatically instead of hiding behind
+        // an unticked flag. Empty/imageless rows (e.g. test stubs) stay hidden.
         const { data, error } = await supabaseServer
             .from('categories')
             .select('*')
-            .eq('show_on_home', true)
             .order('name', { ascending: true });
         if (error) {
             console.error('[Page getHomeCategories] Error:', error);
             return [];
         }
         const rows = Array.isArray(data) ? data : [];
+        let counts: Record<string, number> = {};
+        try {
+            const { data: prods } = await supabaseServer.from('products').select('id, category_id');
+            (Array.isArray(prods) ? prods : []).forEach((p: any) => {
+                if (p?.category_id) counts[p.category_id] = (counts[p.category_id] || 0) + 1;
+            });
+        } catch { /* counts stay empty — flagged rows still show */ }
         return rows
+            .filter((c: any) => c?.show_on_home === true || ((c?.image_url || '').trim() !== '' && (counts[c.id] || 0) > 0))
             .map((c: any, i: number) => ({
                 id: Number(c.id) || i + 1,
                 name: String(c.name || ''),

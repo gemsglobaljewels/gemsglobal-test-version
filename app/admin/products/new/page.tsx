@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import RichTextEditor from "@/components/RichTextEditor";
 import { resolveAdminFxRate } from "@/lib/adminRate";
+import { extractDriveId, isDriveUrl } from "@/lib/video";
 
 interface CustomOptionItem {
   key: string;
@@ -28,7 +29,7 @@ const DISCOUNT_PRESETS = [0, 5, 10, 15, 20, 25, 30, 40, 50]
 const LABEL_PRESETS = ['Popular', 'Limited', 'Featured', 'New', 'Best Seller', 'Sale', 'Exclusive']
 
 function isVideo(u: string) {
-  return /\.(mp4|webm|ogg)(\?|$)/i.test(u) || /youtube\.com|youtu\.be|vimeo\.com/i.test(u)
+  return /\.(mp4|webm|ogg)(\?|$)/i.test(u) || /youtube\.com|youtu\.be|vimeo\.com|drive\.google\.com|docs\.google\.com/i.test(u)
 }
 
 export default function AddProductPage() {
@@ -87,6 +88,11 @@ export default function AddProductPage() {
   const [productSizePrices, setProductSizePrices] = useState<Record<string, string>>({})
   const [newSizeName, setNewSizeName] = useState('')
   const [newSizePrice, setNewSizePrice] = useState('0')
+  // Bulk-delete selection per global list (metals / carats / sizes) — tick
+  // several, delete once, instead of one confirm per row.
+  const [bulkDelMetals, setBulkDelMetals] = useState<string[]>([])
+  const [bulkDelCarats, setBulkDelCarats] = useState<string[]>([])
+  const [bulkDelSizes, setBulkDelSizes] = useState<string[]>([])
 
   // Carat Options
   const [caratOptions, setCaratOptions] = useState<any[]>([])
@@ -522,6 +528,95 @@ export default function AddProductPage() {
     }
   }
 
+  // ── Bulk delete: one confirm for many rows, parallel API calls, then a
+  // single state sweep per list (no per-row confirm/loading churn). ──
+  const sweepCombosForKeys = (
+    keys: Set<string>,
+    setSel: (updater: (prev: Record<string, boolean>) => Record<string, boolean>) => void,
+    setHid: (updater: (prev: Record<string, boolean>) => Record<string, boolean>) => void,
+    setOv: (updater: (prev: Record<string, string>) => Record<string, string>) => void,
+    matchMetal: boolean
+  ) => {
+    const drop = (prev: Record<string, any>) => {
+      const next = { ...prev }
+      Object.keys(next).forEach(vkey => {
+        const parts = vkey.split('__')
+        const hit = matchMetal ? keys.has(parts[0]) : keys.has(parts[1])
+        if (hit) delete next[vkey]
+      })
+      return next
+    }
+    setSel(drop as any); setHid(drop as any); setOv(drop as any)
+  }
+
+  const bulkDeleteMetals = async (keys: string[]) => {
+    if (keys.length === 0) return
+    const names = metalOptions.filter(o => keys.includes(o.key)).map(o => o.name)
+    if (!confirm(`Delete ${keys.length} metal option(s) globally?\n${names.slice(0, 8).join(', ')}${names.length > 8 ? '…' : ''}\nThis cannot be undone.`)) return
+    try {
+      setLoading(true)
+      const results = await Promise.all(keys.map(k =>
+        fetch(`/api/metal-options?key=${encodeURIComponent(k)}`, { method: 'DELETE' })
+          .then(r => ({ k, ok: r.ok })).catch(() => ({ k, ok: false as boolean }))
+      ))
+      const okKeys = new Set(results.filter(r => r.ok).map(r => r.k))
+      if (okKeys.size === 0) { setError('Failed to delete metal options'); return }
+      setMetalOptions(prev => prev.filter(o => !okKeys.has(o.key)))
+      setSelectedMetals(prev => prev.filter(k => !okKeys.has(k)))
+      setProductMetalPrices(prev => { const n = { ...prev }; okKeys.forEach(k => { delete n[k] }); return n })
+      sweepCombosForKeys(okKeys, setComboSel, setHiddenCombos, setVariantOverrides, true)
+      setBulkDelMetals([])
+      showStatus('success', `Deleted ${okKeys.size} metal option(s) globally`)
+      if (okKeys.size < keys.length) setError(`${keys.length - okKeys.size} option(s) could not be deleted`)
+    } catch { setError('Failed to delete metal options') }
+    finally { setLoading(false) }
+  }
+
+  const bulkDeleteCarats = async (keys: string[]) => {
+    if (keys.length === 0) return
+    const names = caratOptions.filter(o => keys.includes(o.key)).map(o => o.name)
+    if (!confirm(`Delete ${keys.length} diamond weight option(s) globally?\n${names.slice(0, 8).join(', ')}${names.length > 8 ? '…' : ''}\nThis cannot be undone.`)) return
+    try {
+      setLoading(true)
+      const results = await Promise.all(keys.map(k =>
+        fetch(`/api/carat-options?key=${encodeURIComponent(k)}`, { method: 'DELETE' })
+          .then(r => ({ k, ok: r.ok })).catch(() => ({ k, ok: false as boolean }))
+      ))
+      const okKeys = new Set(results.filter(r => r.ok).map(r => r.k))
+      if (okKeys.size === 0) { setError('Failed to delete carat options'); return }
+      setCaratOptions(prev => prev.filter(o => !okKeys.has(o.key)))
+      setSelectedCarats(prev => prev.filter(k => !okKeys.has(k)))
+      setProductCaratPrices(prev => { const n = { ...prev }; okKeys.forEach(k => { delete n[k] }); return n })
+      sweepCombosForKeys(okKeys, setComboSel, setHiddenCombos, setVariantOverrides, false)
+      setBulkDelCarats([])
+      showStatus('success', `Deleted ${okKeys.size} diamond weight option(s) globally`)
+      if (okKeys.size < keys.length) setError(`${keys.length - okKeys.size} option(s) could not be deleted`)
+    } catch { setError('Failed to delete carat options') }
+    finally { setLoading(false) }
+  }
+
+  const bulkDeleteSizes = async (keys: string[]) => {
+    if (keys.length === 0) return
+    const names = sizeOptions.filter(o => keys.includes(o.key)).map(o => o.name)
+    if (!confirm(`Delete ${keys.length} size option(s) globally?\n${names.slice(0, 8).join(', ')}${names.length > 8 ? '…' : ''}\nThis cannot be undone.`)) return
+    try {
+      setLoading(true)
+      const results = await Promise.all(keys.map(k =>
+        fetch(`/api/size-options?key=${encodeURIComponent(k)}`, { method: 'DELETE' })
+          .then(r => ({ k, ok: r.ok })).catch(() => ({ k, ok: false as boolean }))
+      ))
+      const okKeys = new Set(results.filter(r => r.ok).map(r => r.k))
+      if (okKeys.size === 0) { setError('Failed to delete size options'); return }
+      setSizeOptions(prev => prev.filter(o => !okKeys.has(o.key)))
+      setSelectedSizes(prev => prev.filter(k => !okKeys.has(k)))
+      setProductSizePrices(prev => { const n = { ...prev }; okKeys.forEach(k => { delete n[k] }); return n })
+      setBulkDelSizes([])
+      showStatus('success', `Deleted ${okKeys.size} size option(s) globally`)
+      if (okKeys.size < keys.length) setError(`${keys.length - okKeys.size} option(s) could not be deleted`)
+    } catch { setError('Failed to delete size options') }
+    finally { setLoading(false) }
+  }
+
   const handleAddCategory = async () => {
     if (!newCategory.trim()) return
     try {
@@ -803,8 +898,14 @@ export default function AddProductPage() {
   }
   const handleAddVideoUrl = () => {
     const url = videoUrl.trim(); if (!url) return
+    // Google Drive links must carry an extractable file ID — otherwise the
+    // storefront cannot embed them. Reject early with a clear message.
+    if (isDriveUrl(url) && !extractDriveId(url)) {
+      showStatus('error', 'This Google Drive link has no file ID. Open the file in Drive → Share → "Anyone with the link" → Copy link.');
+      return
+    }
     setImages(p => [...p, url]); setVideoUrl('');
-    showStatus('success', 'Video link added');
+    showStatus('success', isDriveUrl(url) ? 'Google Drive video added — plays inside our viewer' : 'Video link added');
   }
   const removeImage = (idx: number) => setImages(p => p.filter((_, i) => i !== idx))
 
@@ -1162,9 +1263,15 @@ export default function AddProductPage() {
                       <Video size={16} /> {videoUploading ? 'Uploading...' : 'Upload Video File'}
                     </button>
                     <div className="a-row" style={{ gap: 8, marginTop: 12 }}>
-                      <input className="a-input" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="YouTube/Vimeo link..." />
+                      <input className="a-input" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="YouTube / Vimeo / Google Drive / mp4 link…" />
                       <button type="button" className="a-btn a-btn--subtle" onClick={handleAddVideoUrl}>Add</button>
                     </div>
+                    {videoUrl.trim() !== '' && isDriveUrl(videoUrl.trim()) && (
+                      extractDriveId(videoUrl.trim())
+                        ? <p className="a-hint" style={{ marginTop: 6, color: 'var(--c-success)' }}>✓ Google Drive video detected — will play inside our viewer. Keep sharing as “Anyone with the link”.</p>
+                        : <p className="a-hint" style={{ marginTop: 6, color: 'var(--c-danger)' }}>This Drive link has no file ID — open the file → Share → “Anyone with the link” → Copy link.</p>
+                    )}
+                    <p className="a-hint" style={{ marginTop: 6 }}>Drive: right-click file → Share → “Anyone with the link can view” → Copy link.</p>
                   </div>
                   <div className="a-field">
                     <label className="a-label">3D Interaction (GLB/GLTF)</label>
@@ -1288,8 +1395,8 @@ export default function AddProductPage() {
                       value={comboSearch}
                       onChange={e => setComboSearch(e.target.value)}
                     />
-                    <label className="a-check" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <input type="checkbox" checked={showHidden} onChange={e => setShowHidden(e.target.checked)} />
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', fontFamily: 'var(--font-dmsans)', fontSize: 12, fontWeight: 500, color: 'var(--c-text)' }}>
+                      <input type="checkbox" className="a-check" checked={showHidden} onChange={e => setShowHidden(e.target.checked)} />
                       <span>Show hidden</span>
                     </label>
                     <button type="button" className="a-btn a-btn--subtle a-btn--sm" onClick={() => {
@@ -1397,12 +1504,28 @@ export default function AddProductPage() {
                   {/* Global option management — permanent deletion lives here. */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--c-border)' }}>
                     <div>
-                      <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--c-text-muted)' }}>
-                        Materials — global ({metalOptions.filter(o => o.is_enabled !== false).length})
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--c-text-muted)' }}>
+                          Materials — global ({metalOptions.filter(o => o.is_enabled !== false).length})
+                        </span>
+                        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          <button type="button" className="a-btn a-btn--subtle a-btn--sm" onClick={() => {
+                            const all = metalOptions.filter(o => o.is_enabled !== false).map(o => o.key)
+                            setBulkDelMetals(bulkDelMetals.length === all.length ? [] : all)
+                          }}>
+                            {bulkDelMetals.length === metalOptions.filter(o => o.is_enabled !== false).length && bulkDelMetals.length > 0 ? 'Clear selection' : 'Select all'}
+                          </button>
+                          {bulkDelMetals.length > 0 && (
+                            <button type="button" className="a-btn a-btn--solid-danger a-btn--sm" onClick={() => bulkDeleteMetals(bulkDelMetals)}>
+                              <Trash2 size={12} />&nbsp;Delete ({bulkDelMetals.length})
+                            </button>
+                          )}
+                        </span>
+                      </div>
                       <div className="np-glob-chips">
                         {metalOptions.filter(o => o.is_enabled !== false).map(m => (
-                          <span key={m.key} className="np-glob-chip">
+                          <span key={m.key} className="np-glob-chip" style={bulkDelMetals.includes(m.key) ? { borderColor: 'var(--c-danger)', background: 'var(--c-danger-bg)' } : undefined}>
+                            <input type="checkbox" checked={bulkDelMetals.includes(m.key)} title="Select for bulk delete" onChange={() => setBulkDelMetals(prev => prev.includes(m.key) ? prev.filter(k => k !== m.key) : [...prev, m.key])} style={{ width: 14, height: 14, cursor: 'pointer', accentColor: 'var(--c-danger)' }} />
                             {m.name}
                             <button type="button" onClick={() => deleteGlobalMetalOption(m.key)} title={`Delete "${m.name}" globally (removes all its rows)`}>
                               <Trash2 size={12} />
@@ -1412,12 +1535,28 @@ export default function AddProductPage() {
                       </div>
                     </div>
                     <div>
-                      <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--c-text-muted)' }}>
-                        Diamond weights — global ({caratOptions.filter(o => o.is_enabled !== false).length})
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--c-text-muted)' }}>
+                          Diamond weights — global ({caratOptions.filter(o => o.is_enabled !== false).length})
+                        </span>
+                        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          <button type="button" className="a-btn a-btn--subtle a-btn--sm" onClick={() => {
+                            const all = caratOptions.filter(o => o.is_enabled !== false).map(o => o.key)
+                            setBulkDelCarats(bulkDelCarats.length === all.length ? [] : all)
+                          }}>
+                            {bulkDelCarats.length === caratOptions.filter(o => o.is_enabled !== false).length && bulkDelCarats.length > 0 ? 'Clear selection' : 'Select all'}
+                          </button>
+                          {bulkDelCarats.length > 0 && (
+                            <button type="button" className="a-btn a-btn--solid-danger a-btn--sm" onClick={() => bulkDeleteCarats(bulkDelCarats)}>
+                              <Trash2 size={12} />&nbsp;Delete ({bulkDelCarats.length})
+                            </button>
+                          )}
+                        </span>
+                      </div>
                       <div className="np-glob-chips">
                         {caratOptions.filter(o => o.is_enabled !== false).map(c => (
-                          <span key={c.key} className="np-glob-chip">
+                          <span key={c.key} className="np-glob-chip" style={bulkDelCarats.includes(c.key) ? { borderColor: 'var(--c-danger)', background: 'var(--c-danger-bg)' } : undefined}>
+                            <input type="checkbox" checked={bulkDelCarats.includes(c.key)} title="Select for bulk delete" onChange={() => setBulkDelCarats(prev => prev.includes(c.key) ? prev.filter(k => k !== c.key) : [...prev, c.key])} style={{ width: 14, height: 14, cursor: 'pointer', accentColor: 'var(--c-danger)' }} />
                             {c.name}
                             <button type="button" onClick={() => deleteGlobalCaratOption(c.key)} title={`Delete "${c.name}" globally (removes all its rows)`}>
                               <Trash2 size={12} />
@@ -1447,6 +1586,24 @@ export default function AddProductPage() {
                 <hr className="a-divider" />
 
                 <div className="a-section-title">Available Size Options</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'var(--c-text-muted)' }}>
+                    Tick rows to delete several sizes at once
+                  </span>
+                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <button type="button" className="a-btn a-btn--subtle a-btn--sm" onClick={() => {
+                      const all = sizeOptions.filter(o => o.is_enabled !== false).map(o => o.key)
+                      setBulkDelSizes(bulkDelSizes.length === all.length ? [] : all)
+                    }}>
+                      {bulkDelSizes.length === sizeOptions.filter(o => o.is_enabled !== false).length && bulkDelSizes.length > 0 ? 'Clear selection' : 'Select all'}
+                    </button>
+                    {bulkDelSizes.length > 0 && (
+                      <button type="button" className="a-btn a-btn--solid-danger a-btn--sm" onClick={() => bulkDeleteSizes(bulkDelSizes)}>
+                        <Trash2 size={12} />&nbsp;Delete ({bulkDelSizes.length})
+                      </button>
+                    )}
+                  </span>
+                </div>
                 <div className="a-field">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <div className="np-mc-grid np-mc-head">
@@ -1500,7 +1657,14 @@ export default function AddProductPage() {
                               setProductSizePrices(prev => ({ ...prev, [opt.key]: e.target.value }))
                             }}
                           />
-                          <div className="np-mc-del">
+                          <div className="np-mc-del" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <input
+                              type="checkbox"
+                              checked={bulkDelSizes.includes(opt.key)}
+                              title="Select for bulk delete"
+                              onChange={() => setBulkDelSizes(prev => prev.includes(opt.key) ? prev.filter(k => k !== opt.key) : [...prev, opt.key])}
+                              style={{ width: 14, height: 14, cursor: 'pointer', accentColor: 'var(--c-danger)' }}
+                            />
                             <button
                               type="button"
                               className="a-icon-btn a-icon-btn--danger a-icon-btn--sm"

@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Price } from "@/components/Price";
 import { salePrice, normalizeDiscount, defaultVariantSelection, optionDisplayName } from "@/components/ProductCard";
+import { isVideoUrl, isEmbedVideoUrl, videoEmbedUrl, isDisplayableImageUrl } from "@/lib/video";
 import { RecentlyViewed } from "@/components/RecentlyViewed";
 
 /* ── Types ── */
@@ -851,6 +852,11 @@ const PDP_CSS = `
   display: flex; align-items: center; justify-content: center; cursor: zoom-out;
 }
 .pdp-lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 10px; }
+.pdp-lightbox iframe, .pdp-lightbox video {
+  width: min(90vw, 960px); aspect-ratio: 16 / 9; max-height: 86vh;
+  border: none; border-radius: 10px; background: #000;
+  box-shadow: 0 30px 80px -20px rgba(0,0,0,.6);
+}
 .pdp-lightbox-x {
   position: absolute; top: 28px; right: 28px; color: #fff; cursor: pointer;
   width: 46px; height: 46px; border-radius: 50%;
@@ -985,10 +991,9 @@ function relDate(d: string) {
 }
 
 function isDisplayable(url: string) {
-  if (!url) return false;
-  if (/\.(mp4|webm|ogg|mov)([?#]|$)/i.test(url)) return false;
-  if (/\.(glb|gltf|usdz)([?#]|$)/i.test(url)) return false;
-  return true;
+  // Single source of truth (lib/video): video of every kind (files, Drive,
+  // YouTube, Vimeo) and 3D models are separate tabs, never gallery images.
+  return isDisplayableImageUrl(url);
 }
 
 /* ── SafeImage ── */
@@ -1127,7 +1132,7 @@ export default function ProductDetails({ initialProduct, slug }: {
     if (initialProduct) {
       setProduct(initialProduct);
       const imgs = Array.isArray(initialProduct.images) ? initialProduct.images : [];
-      const vid = imgs.find(u => /\.(mp4|webm|ogg|mov)/i.test(u)) || initialProduct.video_url || null;
+      const vid = imgs.find(u => isVideoUrl(u)) || initialProduct.video_url || null;
       const mdl = imgs.find(u => /\.(glb|gltf)/i.test(u)) || initialProduct.model_3d || null;
       setVideoUrl(vid);
       setDiamondModel(mdl);
@@ -1376,6 +1381,8 @@ export default function ProductDetails({ initialProduct, slug }: {
 
   // side-zoom source: the active main image
   const zoomSrc = allImgs[selImg] || '';
+  // Drive / YouTube / Vimeo play inside OUR dialog via embed — never a Drive redirect
+  const videoEmbed = videoUrl ? videoEmbedUrl(videoUrl) : null;
   // panel shows side-zoom only for real images (not 3D / video) and when there is a source
   const canSideZoom = selImg >= 0 && !!zoomSrc;
   const panelActive = zoomActive && canSideZoom && !lightbox;
@@ -1439,7 +1446,11 @@ export default function ProductDetails({ initialProduct, slug }: {
               {selImg === -1 ? (
                 <ModelViewer3D src={diamondModel || ''} poster={allImgs[0]} fill />
               ) : selImg === -2 ? (
-                <video src={videoUrl || ''} controls autoPlay muted loop playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                videoEmbed ? (
+                  <iframe src={videoEmbed} title={`${product.name} video`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ width: '100%', height: '100%', border: 'none' }} />
+                ) : (
+                  <video src={videoUrl || ''} controls autoPlay muted loop playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                )
               ) : (
                 <SafeImage src={allImgs[selImg] || ''} alt={product.name} fallback={initial} />
               )}
@@ -1987,13 +1998,23 @@ export default function ProductDetails({ initialProduct, slug }: {
       <RecentlyViewed />
       <Footer />
 
-      {/* Lightbox */}
-      {lightbox && (
-        <div className="pdp-lightbox" onClick={() => setLightbox(null)}>
-          <div className="pdp-lightbox-x"><CloseIcon size={22} /></div>
-          <img src={lightbox} alt="Full view" />
-        </div>
-      )}
+      {/* Lightbox — images, direct video files and embeds (Drive/YouTube/Vimeo
+          play inside OUR dialog, never a Drive redirect) */}
+      {lightbox && (() => {
+        const embed = videoEmbedUrl(lightbox);
+        return (
+          <div className="pdp-lightbox" onClick={() => setLightbox(null)}>
+            <div className="pdp-lightbox-x"><CloseIcon size={22} /></div>
+            {embed ? (
+              <iframe src={embed} title="Video full view" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen onClick={(e) => e.stopPropagation()} />
+            ) : isVideoUrl(lightbox) ? (
+              <video src={lightbox} controls autoPlay playsInline onClick={(e) => e.stopPropagation()} />
+            ) : (
+              <img src={lightbox} alt="Full view" />
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

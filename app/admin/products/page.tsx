@@ -494,6 +494,11 @@ export default function AdminProductsPage() {
                   <td>
                     <div style={{ fontFamily: 'var(--font-main)', fontSize: 16, color: 'var(--c-text)' }}>{fmtUSD(startingRetailPrice(p))}</div>
                     <div className="a-cell-meta">{fmtINR(startingRetailPrice(p))}</div>
+                    {!(startingRetailPrice(p) > 0) && (
+                      <div style={{ marginTop: 6 }}>
+                        <span className="a-badge a-badge--danger" title="No base price and no priced variant — this piece is hidden on the storefront until a price is set.">No Price · Hidden</span>
+                      </div>
+                    )}
                   </td>
                   <td>
                     <div className="a-cell-actions">

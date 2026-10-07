@@ -24,6 +24,7 @@ import {
 } from '@/lib/authStore';
 import { useToast } from '@/hooks/use-toast';
 import { Price } from '@/components/Price';
+import { isDisplayableImageUrl } from '@/lib/video';
 
 /* ─── types ───────────────────────────────────────────────────── */
 export interface MetalOption {
@@ -124,6 +125,20 @@ export function startingRetailPrice(p: any): number {
   return configuredRetailPrice(p, d.metal || undefined, d.carat || undefined);
 }
 
+/* Storefront visibility — variant-aware. A base price of 0 is fine when the
+   product carries priced variants (the shopper never sees the bare base);
+   such pieces must NOT be treated as archived/unsellable. Mirrors the
+   archive convention (archived- slug + zeroed price/stock) for real junk. */
+export function isSellableProduct(p: any): boolean {
+  if (!p) return false;
+  if (String(p.slug || '').toLowerCase().startsWith('archived-')) return false;
+  if (!String(p.name || '').trim()) return false;
+  const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
+  const primary = p.image || imgs[0] || '';
+  if (!primary || !isDisplayableImageUrl(primary)) return false;
+  return startingRetailPrice(p) > 0;
+}
+
 /* Fully-configured retail for an explicit selection — the same math the
    PDP uses (base + per-combination override when present, else the
    metal + carat modifiers, plus any size modifier). Cards / quick view
@@ -197,10 +212,10 @@ export function isDisplayableImage(url: string | any): boolean {
   if (typeof url !== 'string') {
     try { s = JSON.stringify(url); } catch (e) { return false; }
   }
-  const lower = s.toLowerCase();
-  if (/\.(mp4|webm|ogg|mov|avi)([?#]|$)/i.test(lower)) return false;
-  if (/\.(glb|gltf|usdz|obj|fbx)([?#]|$)/i.test(lower)) return false;
-  return s.length > 2;
+  // Single source of truth (lib/video): excludes video of every kind
+  // (files, Drive, YouTube, Vimeo) and 3D models so they never render
+  // as broken gallery/card layers.
+  return isDisplayableImageUrl(s);
 }
 
 export function optimizeImageUrl(url: string | any): string {

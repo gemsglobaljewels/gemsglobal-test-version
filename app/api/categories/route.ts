@@ -18,10 +18,6 @@ export async function GET(request: NextRequest) {
       .select('*, parent: parent_category_id(id, name)')
       .order('name', { ascending: true })
 
-    if (homeOnly) {
-      query = query.eq('show_on_home', true)
-    }
-
     if (recipientOnly) {
       query = query.eq('show_on_recipient', true)
     }
@@ -53,7 +49,12 @@ export async function GET(request: NextRequest) {
       header_image_url: cat.header_image_url ?? null,
       header_description: cat.header_description ?? null,
       product_count: countByCategory[cat.id] || 0
-    })) || []
+    })).filter(cat =>
+      // ?home=true surfaces flagged rows PLUS any real collection (has image
+      // and products) so new admin uploads appear without extra ticking.
+      // Empty/imageless rows (test stubs) stay hidden either way.
+      !homeOnly || cat.show_on_home === true || (String(cat.image_url || '').trim() !== '' && (cat.product_count || 0) > 0)
+    ) || []
 
     return NextResponse.json(enrichedCategories)
   } catch (error: any) {

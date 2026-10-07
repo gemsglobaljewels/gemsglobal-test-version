@@ -14,25 +14,30 @@ interface ShapeItem {
   [key: string]: any;
 }
 
-const SHAPE_IMAGES: Record<string, string> = {
-  round:
-    "https://images.unsplash.com/photo-1615655406736-b37c4fabf923?w=400&h=400&q=90&fit=crop&auto=format",
-  cushion:
-    "https://images.unsplash.com/photo-1583623025817-d180a2221d0a?w=400&h=400&q=90&fit=crop&auto=format",
-  princess:
-    "https://images.unsplash.com/photo-1599459183200-59c7687a0c70?w=400&h=400&q=90&fit=crop&auto=format",
-  emerald:
-    "https://images.unsplash.com/photo-1630699144867-df71a60bae5f?w=400&h=400&q=90&fit=crop&auto=format",
-  oval: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=400&h=400&q=90&fit=crop&auto=format",
-  marquise:
-    "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=400&h=400&q=90&fit=crop&auto=format",
-  pear: "https://images.unsplash.com/photo-1573408301185-9519f94816b5?w=400&h=400&q=90&fit=crop&auto=format",
-  heart:
-    "https://images.unsplash.com/photo-1583623025817-d180a2221d0a?w=400&h=400&q=90&fit=crop&auto=format",
-  radiant:
-    "https://images.unsplash.com/photo-1630699144867-df71a60bae5f?w=400&h=400&q=90&fit=crop&auto=format",
-  asscher:
-    "https://images.unsplash.com/photo-1599459183200-59c7687a0c70?w=400&h=400&q=90&fit=crop&auto=format",
+/* Fallback glyphs — crisp inline SVG diamond outlines used whenever a shape
+   has no admin-uploaded photo. The old hotlinked Unsplash fallbacks 404'd
+   (pear, princess, emerald, radiant, asscher), leaving broken slots, so
+   nothing here depends on the network. Uploading a real photo in
+   Admin → Diamond Shapes replaces the glyph automatically. */
+function ShapeGlyph({ children }: { children: React.ReactNode }) {
+  return (
+    <svg viewBox="0 0 100 100" className="ds-shape-svg" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+const SHAPE_ICONS: Record<string, React.ReactNode> = {
+  round: (<ShapeGlyph><circle cx="50" cy="50" r="30" /><circle cx="50" cy="50" r="14" /><path d="M50 12v6M50 82v6M12 50h6M82 50h6" /></ShapeGlyph>),
+  oval: (<ShapeGlyph><ellipse cx="50" cy="50" rx="21" ry="32" /><ellipse cx="50" cy="50" rx="11" ry="20" /></ShapeGlyph>),
+  cushion: (<ShapeGlyph><rect x="24" y="24" width="52" height="52" rx="15" /><rect x="35" y="35" width="30" height="30" rx="8" /></ShapeGlyph>),
+  princess: (<ShapeGlyph><rect x="26" y="26" width="48" height="48" /><rect x="37" y="37" width="26" height="26" /><path d="M26 26l11 11M74 26l-11 11M26 74l11-11M74 74l-11-11" /></ShapeGlyph>),
+  emerald: (<ShapeGlyph><path d="M38 22h24l16 16v24l-16 16H38l-16-16V38Z" /><path d="M44 32h12l8 8v20l-8 8H44l-8-8V40Z" /></ShapeGlyph>),
+  asscher: (<ShapeGlyph><rect x="28" y="28" width="44" height="44" /><rect x="38" y="38" width="24" height="24" /><rect x="46" y="46" width="8" height="8" /></ShapeGlyph>),
+  marquise: (<ShapeGlyph><path d="M50 14C67 33 67 67 50 86 33 67 33 33 50 14Z" /><path d="M50 26v48" /></ShapeGlyph>),
+  pear: (<ShapeGlyph><path d="M50 14c13 15 22 28 22 42a22 22 0 1 1-44 0c0-14 9-27 22-42Z" /><path d="M50 30v36" /></ShapeGlyph>),
+  heart: (<ShapeGlyph><path d="M50 78C30 62 20 50 20 38c0-12 10-18 18-18 6 0 10 4 12 8 2-4 6-8 12-8 8 0 18 6 18 18 0 12-10 24-30 40Z" /></ShapeGlyph>),
+  radiant: (<ShapeGlyph><path d="M30 24h40l8 8v36l-8 8H30l-8-8V32Z" /><path d="M30 24l12 12M70 24L58 36M30 76l12-12M70 76L58 64" /></ShapeGlyph>),
 };
 
 const DEFAULT_SHAPES: ShapeItem[] = [
@@ -66,7 +71,8 @@ export default function DiamondShapes({
 
   const shapes = raw.map((s) => ({
     ...s,
-    image: s.image || s.img || SHAPE_IMAGES[s.key] || "",
+    // Admin photo wins; otherwise the crisp inline glyph (never a dead hotlink).
+    image: s.image || s.img || "",
   }));
 
   const total = shapes.length;
@@ -161,7 +167,7 @@ export default function DiamondShapes({
                       height={180}
                     />
                   ) : (
-                    <div className="ds-placeholder">◆</div>
+                    SHAPE_ICONS[s.key] || <div className="ds-placeholder">◆</div>
                   )}
                 </div>
               </div>
@@ -227,12 +233,14 @@ export default function DiamondShapes({
                           decoding="async"
                         />
                       ) : (
-                        <div
-                          className="ds-placeholder"
-                          style={{ fontSize: 64 }}
-                        >
-                          ◆
-                        </div>
+                        SHAPE_ICONS[s.key] || (
+                          <div
+                            className="ds-placeholder"
+                            style={{ fontSize: 64 }}
+                          >
+                            ◆
+                          </div>
+                        )
                       )}
                     </div>
                   </div>
@@ -356,6 +364,14 @@ const CSS = `
 .ds-item:hover .ds-img { transform: scale(1.2); }
 
 .ds-placeholder { font-size: 48px; color: #C9A96E; opacity: 0.4; }
+
+/* fallback diamond glyphs — used only when a shape has no admin photo */
+.ds-shape-svg {
+  width: 68%; height: 68%; color: #9a8a76;
+  transition: transform .36s cubic-bezier(.16,1,.3,1), color .26s ease;
+}
+.ds-item:hover .ds-shape-svg { transform: scale(1.12); color: #C9A96E; }
+.ds-slide-img-wrap .ds-shape-svg { width: 120px; height: 120px; }
 
 .ds-labels {
   margin-top: 16px;

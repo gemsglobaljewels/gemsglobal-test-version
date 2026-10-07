@@ -20,7 +20,8 @@ function getTransporter() {
    SHARED EMAIL DESIGN SYSTEM  ·  "Light Atelier"
    One professional, on-brand structure for every transactional email.
    Light ivory canvas · white cards · dark-brown ink · muted-taupe accent.
-   Web-safe serif for headings, sans for body. No icons, no emojis.
+   All-sans typography (DM Sans stack, email-safe fallbacks) — matches the
+   storefront, which is fully sans. No icons, no emojis.
    ════════════════════════════════════════════════════════════════════════════ */
 
 const EMAIL = {
@@ -33,8 +34,10 @@ const EMAIL = {
   accent: '#8F7A70', // taupe brand accent      (--c-accent)
   accentSoft: 'rgba(143,122,112,0.08)',
   line: '#E7DED4', // hairline borders
-  serif: "Georgia, 'Times New Roman', Times, serif",
-  sans: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+  // NOTE: `serif` keeps its historic key name (used across every builder) but
+  // resolves to the same clean sans stack as `sans` — one font everywhere.
+  serif: "'DM Sans','Jost','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif",
+  sans: "'DM Sans','Jost','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif",
   // semantic accents (muted, print-like — no neon)
   ok: '#5E7355', // positive / delivered
   warn: '#9A6C3C', // processing
@@ -817,6 +820,62 @@ function stepsTracker(steps: string[], currentIndex: number, accent = EMAIL.acce
   </tr>`
 }
 
+// ── Shipping address → printable lines (tolerates every stored shape) ────────
+export function formatAddressLines(addr?: Record<string, any> | null): string[] {
+  if (!addr || typeof addr !== 'object') return []
+  const get = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = (addr as any)[k]
+      if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim()
+    }
+    return ''
+  }
+  const lines: string[] = []
+  const name = get('name', 'fullName', 'full_name', 'recipient', 'recipientName')
+  if (name) lines.push(name)
+  const street = get('street', 'address', 'address1', 'addressLine1', 'address_line1', 'line1', 'shippingAddress')
+  if (street) lines.push(street)
+  const cityLine = [get('city', 'town', 'shippingCity'), get('state', 'province', 'region', 'shippingState'), get('pincode', 'pin', 'postalCode', 'postal_code', 'zip', 'zipcode', 'postcode', 'shippingZip')].filter(Boolean).join(', ')
+  if (cityLine) lines.push(cityLine)
+  const country = get('country', 'countryName', 'country_name', 'shippingCountry')
+  if (country && !/^\+\d[\d\s-]*$/.test(country)) lines.push(country)
+  const phone = get('phone', 'phoneNumber', 'phone_number', 'contact', 'mobile', 'shippingPhone')
+  if (phone) lines.push(phone)
+  return lines
+}
+
+// ── Expected delivery date (order date + buffer, per shipping policy) ─────────
+// Standard: 3–7 business days delivery window; express: 1–2. We quote a safe
+// "by" date — policy details live on the /shipping page.
+export function expectedDeliveryBy(fromDate?: Date): string {
+  const base = fromDate instanceof Date && !isNaN(fromDate.getTime()) ? new Date(fromDate) : new Date()
+  base.setDate(base.getDate() + 8)
+  try {
+    return base.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  } catch {
+    return ''
+  }
+}
+
+// ── Delivery panel: expected date + ship-to address ───────────────────────────
+function deliveryPanel(opts: { address?: Record<string, any> | null; expectedBy: string }): string {
+  const lines = formatAddressLines(opts.address)
+  const rows: Array<{ k: string; v: string }> = []
+  if (opts.expectedBy) {
+    rows.push({ k: 'Expected Delivery', v: `<strong style="color:${EMAIL.ink};">by ${opts.expectedBy}</strong>` })
+  }
+  if (lines.length > 0) {
+    rows.push({ k: 'Ships To', v: lines.join('<br/>') })
+  }
+  if (rows.length === 0) return ''
+  return panel({
+    label: 'Delivery',
+    innerRows:
+      kvRows(rows) +
+      `<tr><td colspan="2" style="padding:4px 22px 16px;font-size:11.5px;line-height:1.7;color:${EMAIL.faint};">Complimentary insured delivery. Made-to-order pieces may take a little longer — we will keep you posted at every stage.</td></tr>`,
+  })
+}
+
 function buildOfflineSaleThankYouHTML(data: OfflineSaleEmailData): string {
   const brandName = emailBrand()
   const whatsapp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || ''
@@ -1126,6 +1185,7 @@ interface OrderConfirmationEmailData {
   paymentId: string
   totalAmount: number
   currency: 'INR' | 'USD'
+  shippingAddress?: Record<string, any> | null
   items: Array<{
     name: string
     quantity: number
@@ -1137,7 +1197,41 @@ interface OrderConfirmationEmailData {
   }>
 }
 
-function buildOrderConfirmationHTML(data: OrderConfirmationEmailData): string {
+function buildOrderConfirmationText(data: OrderConfirmationEmailData): string {
+  const brandName = emailBrand()
+  const currencySymbol = data.currency === 'INR' ? '₹' : '$'
+  const fmt = (n: number) =>
+    `${currencySymbol}${Number(n || 0).toLocaleString(data.currency === 'INR' ? 'en-IN' : 'en-US', {
+      minimumFractionDigits: data.currency === 'INR' ? 0 : 2,
+      maximumFractionDigits: data.currency === 'INR' ? 0 : 2,
+    })}`
+  const lines: string[] = [
+    `Dear ${data.customerName || 'Valued Customer'},`,
+    '',
+    `Thank you for your order at ${brandName}. Your payment has been verified and your order #${data.orderId.slice(0, 8).toUpperCase()} is confirmed.`,
+    '',
+    'YOUR ITEMS:',
+    ...data.items.map((it) => {
+      const variant = [it.metal, it.carat, it.size ? `Size ${it.size}` : ''].filter(Boolean).join(' · ')
+      return `- ${it.name}${variant ? ` (${variant})` : ''} — Qty ${it.quantity} × ${fmt(it.price)} = ${fmt(it.price * it.quantity)}`
+    }),
+    '',
+    `Total Paid: ${fmt(data.totalAmount)}`,
+    '',
+  ]
+  const expected = expectedDeliveryBy()
+  if (expected) {
+    lines.push(`Expected Delivery: by ${expected}.`, '')
+  }
+  const addr = formatAddressLines(data.shippingAddress || null)
+  if (addr.length > 0) {
+    lines.push('Ships To:', ...addr, '')
+  }
+  lines.push(`Track your order anytime in your account: ${getPublicUrl()}/account`, '', `Warm regards,`, brandName)
+  return lines.join('\n')
+}
+
+export function buildOrderConfirmationHTML(data: OrderConfirmationEmailData): string {
   const brandName = emailBrand()
   const whatsapp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || ''
   const appUrl = getPublicUrl()
@@ -1180,6 +1274,8 @@ function buildOrderConfirmationHTML(data: OrderConfirmationEmailData): string {
     { label: 'Payment', value: paymentLabel },
     { label: 'Total Paid', value: formatPrice(data.totalAmount) },
   ])}
+
+    ${deliveryPanel({ address: data.shippingAddress || null, expectedBy: expectedDeliveryBy() })}
 
     <tr>
       <td class="em-gutter" style="padding:0 40px 22px;text-align:center;">
@@ -1258,6 +1354,7 @@ export async function sendOrderConfirmationEmail(data: OrderConfirmationEmailDat
       from: `"${brandName}" <${fromEmail}>`,
       to: data.customerEmail,
       subject: `Order Confirmed — #${data.orderId.slice(0, 8).toUpperCase()} | ${brandName}`,
+      text: buildOrderConfirmationText(data),
       html,
     })
 

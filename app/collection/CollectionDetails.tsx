@@ -17,7 +17,8 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Price } from '@/components/Price';
-import ProductCard from '@/components/ProductCard';
+import ProductCard, { isSellableProduct } from '@/components/ProductCard';
+import { isDisplayableImageUrl } from '@/lib/video';
 
 /* ─── utils ─────────────────────────────────────────────────────── */
 /* utils ─ hide junk / non-sellable rows from the storefront.
@@ -25,26 +26,14 @@ import ProductCard from '@/components/ProductCard';
    a piece must have a real price, a real image, and not look like a
    test row or a one-off custom/personal order. */
 function isDisplayableImage(url: string) {
-  if (!url || typeof url !== 'string') return false;
-  if (/\.(mp4|webm|ogg|mov|avi)([?#]|$)/i.test(url)) return false;
-  if (/\.(glb|gltf|usdz|obj|fbx)([?#]|$)/i.test(url)) return false;
-  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) return false;
-  return true;
+  // Single source of truth (lib/video) — also keeps Drive/YouTube/Vimeo
+  // links out of image stacks so they never render as broken pictures.
+  return isDisplayableImageUrl(url);
 }
 
-function isSellableProduct(p: { name: string; price: number; image: string; slug: string }) {
-  // The storefront has no visibility flag, so "junk" is defined the same way the
-  // system itself archives products (see DELETE /api/products/[id]): archived rows
-  // get an `archived-…` slug with price + stock zeroed. A row is therefore sellable
-  // when it has a real price, a real image, a name, and isn't archived.
-  // We deliberately do NOT reject by name keywords (e.g. "test") — the admin may
-  // legitimately name a product that way, and doing so hid real uploads.
-  if (!(Number(p.price) > 0)) return false;
-  if (!p.image || !isDisplayableImage(p.image)) return false;
-  if (!String(p.name || '').trim()) return false;
-  if (String(p.slug || '').toLowerCase().startsWith('archived-')) return false;
-  return true;
-}
+/* Sellability is decided by the shared variant-aware helper imported from
+   components/ProductCard (a base price of 0 is fine when priced variants
+   exist). We deliberately do NOT reject by name keywords (e.g. "test"). */
 
 function mapProduct(p: any, allCategories?: any[]) {
   const rawImgs = Array.isArray(p.images) ? p.images.filter(Boolean) : [];

@@ -120,6 +120,7 @@ export async function POST(request: NextRequest) {
           totalAmount: Number(orderData.total_price),
           currency,
           items,
+          shippingAddress: (orderData.shipping_address as any) || null,
         })
 
         // Notify the store team of the new order (non-blocking)
