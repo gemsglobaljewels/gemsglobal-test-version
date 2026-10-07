@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
+import { refreshStorefront } from '@/lib/revalidate'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,8 +58,10 @@ export async function PUT(request: NextRequest) {
                 ...DEFAULT_SHAPES.filter(d => !items.find(i => i.key === d.key)),
                 ...items.map(i => ({ ...i, is_enabled: i.is_enabled !== false })),
             ]
+            refreshStorefront(['/'])
             return NextResponse.json(merged, { status: 200 })
         }
+        refreshStorefront(['/'])
         return NextResponse.json(data || [], { status: 200 })
     } catch {
         return NextResponse.json({ error: 'Failed to update diamond shapes' }, { status: 500 })

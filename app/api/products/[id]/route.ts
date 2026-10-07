@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
+import { refreshStorefront } from '@/lib/revalidate'
 
 export const dynamic = 'force-dynamic'
 
@@ -453,6 +454,8 @@ export async function PUT(
     if (!result) {
       return NextResponse.json({ error: 'Failed to update product' }, { status: 500 })
     }
+    // Edited product must reflect on home/collection/PDP with a single refresh.
+    refreshStorefront((result as any).slug ? [`/products/${(result as any).slug}`] : [])
     return NextResponse.json({ ...result, variant_saved: variantSaved })
   } catch (error) {
     return NextResponse.json(
@@ -473,6 +476,7 @@ export async function DELETE(
     try {
       const { error } = await supabaseServer.from('products').delete().eq('id', id)
       if (!error) {
+        refreshStorefront([])
         return NextResponse.json({ success: true })
       }
     } catch (e) {
@@ -490,6 +494,7 @@ export async function DELETE(
       }).eq('id', id)
 
       if (!updateError) {
+        refreshStorefront([])
         return NextResponse.json({ success: true, archived: true })
       }
 

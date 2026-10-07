@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
 import { requireAdmin } from '@/lib/apiAuth'
+import { refreshStorefront } from '@/lib/revalidate'
 
 // GET is public: the homepage hero slider consumes it.
 export async function GET() {
@@ -65,6 +66,9 @@ export async function POST(request: NextRequest) {
       console.error('[Hero API] POST Error:', result.error)
       return NextResponse.json({ error: result.error.message }, { status: 500 })
     }
+
+    // New slider must show on the homepage with a single refresh.
+    refreshStorefront(['/'])
 
     return NextResponse.json(result.data)
   } catch (err: any) {

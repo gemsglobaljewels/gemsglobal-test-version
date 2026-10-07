@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
+import { refreshStorefront } from '@/lib/revalidate'
 
 // Generate slug from name
 function generateSlug(name: string): string {
@@ -99,6 +100,9 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) throw error
+
+    // New/edited category must surface on home + collection with one refresh.
+    refreshStorefront([])
 
     return NextResponse.json(data, { status: 201 })
   } catch (error: any) {

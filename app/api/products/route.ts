@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
+import { refreshStorefront } from '@/lib/revalidate'
 
 export const dynamic = 'force-dynamic'
 
@@ -567,6 +568,8 @@ export async function POST(request: NextRequest) {
     if (!created) {
       return NextResponse.json({ error: 'Failed to create product' }, { status: 500 })
     }
+    // New product must surface on home/collection/PDP with a single refresh.
+    refreshStorefront(created.slug ? [`/products/${created.slug}`] : [])
     return NextResponse.json({ ...created, variant_saved: variantSaved }, { status: 201 })
   } catch (error: any) {
     return NextResponse.json({ error: 'Failed to create product' }, { status: 500 })
