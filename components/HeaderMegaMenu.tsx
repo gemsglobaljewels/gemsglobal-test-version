@@ -249,23 +249,41 @@ const CSS = `
 @media(max-width:1023px){.hm-ic{width:41px;height:41px;border-radius:12px;}}
 @media(max-width:380px){.hm-ic{width:38px;height:38px;border-radius:11px;}}
 
-/* count badge — sits FULLY outside the button, touching its top-right corner.
-   Icon stays perfectly centered and untouched; badge takes no layout space. */
-.hm-ic-badge{
-  position:absolute;top:-16px;right:-16px;z-index:3;min-width:16px;height:16px;padding:0 4px;border-radius:10px;
-  background:linear-gradient(135deg,var(--hm-gold),var(--hm-gold2));color:#fff;
-  font-family:var(--hm-sans);font-size:9px;font-weight:700;line-height:1;letter-spacing:.01em;
-  font-variant-numeric:tabular-nums;
-  display:inline-flex;align-items:center;justify-content:center;
-  border:1.5px solid var(--hm-w);box-shadow:0 3px 8px -2px rgba(58,46,34,.5);
-  animation:hmBadgePop .38s var(--hm-spring);pointer-events:none;
+/* ── cart pill — bag icon + inline count, zero overlap by construction ──
+   The count lives IN FLOW (never absolute), so the icon can never shift and
+   nothing ever covers it. Same cream-plate language as .hm-ic, same gold
+   fill + white flip on hover. */
+.hm-cartpill{
+  display:inline-flex;align-items:center;gap:9px;height:43px;padding:0 15px 0 13px;
+  border-radius:13px;cursor:pointer;flex-shrink:0;
+  border:1px solid var(--hm-bd);
+  background:linear-gradient(160deg,var(--hm-w),var(--hm-cream));
+  color:var(--hm-ink);text-decoration:none;position:relative;
+  box-shadow:0 1px 3px -1px rgba(58,46,34,.12),inset 0 1px 0 rgba(255,255,255,.8);
+  transition:color .22s ease,border-color .22s ease,box-shadow .28s var(--hm-e),transform .18s var(--hm-spring);
+  -webkit-tap-highlight-color:transparent;
 }
-/* smaller screens: button shrinks (41px/38px) so the badge steps down too,
-   keeping the same inside-corner balance instead of crowding the icon */
-@media(max-width:1023px){.hm-ic-badge{min-width:15px;height:15px;font-size:8.5px;top:-15px;right:-15px;}}
-@media(max-width:380px){.hm-ic-badge{min-width:14px;height:14px;font-size:8px;top:-14px;right:-14px;border-width:1px;}}
-.hm-ic:hover .hm-ic-badge{background:linear-gradient(135deg,var(--hm-gold),var(--hm-gold2));}
+.hm-cartpill::before{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(135deg,var(--hm-gold),var(--hm-gold2));
+  opacity:0;transition:opacity .24s ease;
+}
+.hm-cartpill > *{position:relative;z-index:1;}
+.hm-cartpill:hover{color:#fff;border-color:transparent;transform:translateY(-1px);
+  box-shadow:0 8px 18px -9px rgba(140,116,86,.7);}
+.hm-cartpill:hover::before{opacity:1;}
+.hm-cartpill:active{transform:translateY(0) scale(.94);}
+.hm-cartpill-sep{width:1px;height:20px;background:var(--hm-bd);transition:background .22s ease;}
+.hm-cartpill:hover .hm-cartpill-sep{background:rgba(255,255,255,.35);}
+.hm-cart-n{
+  font-family:var(--hm-sans);font-size:13px;font-weight:800;letter-spacing:.02em;
+  font-variant-numeric:tabular-nums;min-width:15px;text-align:center;line-height:1;
+  animation:hmCartCountIn .38s var(--hm-spring);
+}
+@keyframes hmCartCountIn{0%{transform:scale(.4);opacity:0;}60%{transform:scale(1.15);}100%{transform:scale(1);opacity:1;}}
 @keyframes hmBadgePop{0%{transform:scale(0);}60%{transform:scale(1.18);}100%{transform:scale(1);}}
+@media(max-width:1023px){.hm-cartpill{height:41px;border-radius:12px;padding:0 13px 0 11px;}}
+@media(max-width:380px){.hm-cartpill{height:38px;border-radius:11px;padding:0 11px 0 10px;}}
 
 .hm-consultant{
   display:inline-flex;align-items:center;gap:10px;height:48px;padding:0 20px;margin-left:4px;
@@ -1257,9 +1275,14 @@ export default function HeaderMegaMenu() {
                 <Link href="/account" className="hm-ic" aria-label="Account"><User size={20} /></Link>
               )}
               {showCart && (
-                <Link href="/cart" className="hm-ic" aria-label={`Cart${cartCnt > 0 ? `, ${cartCnt} item${cartCnt > 1 ? 's' : ''}` : ''}`}>
-                  <NavBag size={20} />
-                  {cartCnt > 0 && <span className="hm-ic-badge" suppressHydrationWarning>{fmtCount(cartCnt)}</span>}
+                <Link href="/cart" className="hm-cartpill" aria-label={`Cart${cartCnt > 0 ? `, ${cartCnt} item${cartCnt > 1 ? 's' : ''}` : ''}`}>
+                  <NavBag size={19} />
+                  {cartCnt > 0 && (
+                    <>
+                      <span className="hm-cartpill-sep" aria-hidden="true" />
+                      <span className="hm-cart-n" key={cartCnt} suppressHydrationWarning>{fmtCount(cartCnt)}</span>
+                    </>
+                  )}
                 </Link>
               )}
             </div>

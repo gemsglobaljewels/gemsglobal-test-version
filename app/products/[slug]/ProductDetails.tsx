@@ -206,7 +206,7 @@ const PDP_CSS = `
 }
 
 .pdp-zoom-btn {
-  position: absolute; bottom: 16px; right: 16px; z-index: 6;
+  position: absolute; top: 14px; right: 14px; z-index: 6;
   width: 42px; height: 42px; border-radius: 50%;
   background: rgba(255,255,255,.92); backdrop-filter: blur(6px);
   border: 1px solid var(--bd);
@@ -273,9 +273,9 @@ const PDP_CSS = `
   .pdp-gallery-shell.zoom-active .pdp-zoom-panel {
     display: block; opacity: 1;
   }
-  /* when actively zooming, soften the convenience buttons so they don't fight the lens */
-  .pdp-main-wrap.zooming .pdp-zoom-btn,
-  .pdp-main-wrap.zooming .pdp-gal-nav { opacity: 0; pointer-events: none; }
+  /* controls stay clickable at all times — hovering them pauses the lens
+     (see onMouseEnter below) instead of hiding them, so zoom + buttons
+     never fight each other */
 }
 @media(min-width:1024px) and (max-width:1199px){
   .pdp-zoom-panel { width: 360px; }
@@ -1378,7 +1378,7 @@ export default function ProductDetails({ initialProduct, slug }: {
   const zoomSrc = allImgs[selImg] || '';
   // panel shows side-zoom only for real images (not 3D / video) and when there is a source
   const canSideZoom = selImg >= 0 && !!zoomSrc;
-  const panelActive = zoomActive && canSideZoom;
+  const panelActive = zoomActive && canSideZoom && !lightbox;
 
   return (
     <div className="pdp-root">
@@ -1453,18 +1453,18 @@ export default function ProductDetails({ initialProduct, slug }: {
                   style={{ left: zoom.lensX, top: zoom.lensY, width: zoom.lensW, height: zoom.lensH }}
                 />
               )}
-              {/* Nav arrows */}
+              {/* Nav arrows — pausing the lens on hover so it never swallows clicks */}
               {allImgs.length > 1 && selImg >= 0 && (
                 <>
-                  <button className="pdp-gal-nav prev" onClick={() => setSelImg(Math.max(0, selImg - 1))}>
+                  <button className="pdp-gal-nav prev" onClick={() => setSelImg(Math.max(0, selImg - 1))} onMouseEnter={handleZoomLeave} aria-label="Previous image">
                     <ChevronLeft size={16} />
                   </button>
-                  <button className="pdp-gal-nav next" onClick={() => setSelImg(Math.min(allImgs.length - 1, selImg + 1))}>
+                  <button className="pdp-gal-nav next" onClick={() => setSelImg(Math.min(allImgs.length - 1, selImg + 1))} onMouseEnter={handleZoomLeave} aria-label="Next image">
                     <ChevronRight size={16} />
                   </button>
                 </>
               )}
-              <div className="pdp-zoom-btn" onClick={() => allImgs[selImg] && setLightbox(allImgs[selImg])}>
+              <div className="pdp-zoom-btn" role="button" tabIndex={0} aria-label="Open fullscreen view" onClick={() => allImgs[selImg] && setLightbox(allImgs[selImg])} onMouseEnter={handleZoomLeave} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); allImgs[selImg] && setLightbox(allImgs[selImg]); } }}>
                 <ZoomIn size={16} />
               </div>
             </div>
