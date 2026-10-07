@@ -852,9 +852,16 @@ const PDP_CSS = `
   display: flex; align-items: center; justify-content: center; cursor: zoom-out;
 }
 .pdp-lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 10px; }
-.pdp-lightbox iframe, .pdp-lightbox video {
-  width: min(90vw, 960px); aspect-ratio: 16 / 9; max-height: 86vh;
+/* Embedded players (Drive/YouTube) need an explicit 16:9 stage. Direct video
+   files size NATURALLY to their own ratio (portrait stays pillar-free). */
+.pdp-lightbox iframe {
+  width: min(90vw, 960px); aspect-ratio: 16 / 9;
   border: none; border-radius: 10px; background: #000;
+  box-shadow: 0 30px 80px -20px rgba(0,0,0,.6);
+}
+.pdp-lightbox video {
+  max-width: min(90vw, 640px); max-height: 86vh; width: auto; height: auto;
+  border-radius: 10px; background: #000;
   box-shadow: 0 30px 80px -20px rgba(0,0,0,.6);
 }
 .pdp-lightbox-x {
