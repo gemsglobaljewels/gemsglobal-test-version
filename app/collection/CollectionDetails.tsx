@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import HeaderMegaMenu from '@/components/HeaderMegaMenu'
 import { Footer } from '@/components/footer';
+import { optionAppliesToCategory } from '@/lib/categoryScope';
 import './collection.css';
 import {
   ChevronDown, Grid3x3, LayoutList, Search, BadgeCheck,
@@ -80,6 +81,7 @@ function mapProduct(p: any, allCategories?: any[]) {
     // fall back to the bare base price (e.g. ₹0) when the raw lookup misses.
     metal_options: p.metal_options || [],
     size_options: p.size_options || [],
+    category_id: p.category_id || null,
     carat_options: p.carat_options || [],
     variant_prices: p.variant_prices || [],
     discount_percent: p.discount_percent,
@@ -1197,7 +1199,9 @@ function CollectionDetailsInner({ initialProducts }: { initialProducts: any[] })
   const [metal, setMetal] = useState('All');
   const [style, setStyle] = useState('All');
   const [shape, setShape] = useState('All');
-  const [styleOptions, setStyleOptions] = useState<{ key: string; name: string }[]>([]);
+  // Raw style rows are kept whole; the sidebar list below is the
+  // category-scoped view (a Necklaces visit must not offer ring styles).
+  const [styleRows, setStyleRows] = useState<any[]>([]);
   const [shapeOptions, setShapeOptions] = useState<{ key: string; name: string }[]>([]);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
@@ -1205,6 +1209,19 @@ function CollectionDetailsInner({ initialProducts }: { initialProducts: any[] })
   const [page, setPage] = useState(1);
   const itemsPerPage = 12;
   const didMountRef = useRef(false);
+
+  // Resolve the active category row (by name or slug) → its UUID, then keep
+  // only the styles tagged for it (empty category_ids = universal).
+  const activeCatId = String(
+    (categories.find(c => c.name === category || c.slug === category) || {}).id || ''
+  );
+  const styleOptions = useMemo(
+    () => styleRows
+      .filter(x => x.is_enabled !== false)
+      .filter(x => !activeCatId || optionAppliesToCategory(x, activeCatId))
+      .map(x => ({ key: x.key, name: x.name })),
+    [styleRows, activeCatId]
+  );
 
   const organizedCategories = useMemo(() => {
     const parents = categories.filter(c => !c.parent_category_id);
@@ -1224,7 +1241,7 @@ function CollectionDetailsInner({ initialProducts }: { initialProducts: any[] })
     // products are actually tagged with.
     fetch('/api/styles')
       .then(r => r.json())
-      .then(d => setStyleOptions(Array.isArray(d) ? d.filter((x: any) => x.is_enabled !== false).map((x: any) => ({ key: x.key, name: x.name })) : []))
+      .then(d => setStyleRows(Array.isArray(d) ? d.filter((x: any) => x.is_enabled !== false) : []))
       .catch(() => { });
     fetch('/api/diamond-shapes')
       .then(r => r.json())

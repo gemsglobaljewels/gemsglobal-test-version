@@ -1,7 +1,29 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { groupByFamily, type CategoryRef } from '@/lib/categoryScope'
+
+/* ── Styles on the homepage ────────────────────────────────────────────────
+   Each admin-managed section ("Rings By Style", "Bracelets By Style", …) is
+   its own stacked box: heading, then that section's styles, then the next
+   box — one category per section, exactly as briefed.
+
+   · `sections` comes from `style_sections` (migration 120) and carries the
+     admin's title / order / show-on-home switch,
+   · only `is_active` sections render, and a section with no visible styles
+     is skipped rather than leaving an empty box,
+   · a style whose section is switched OFF stays off with it — it is not
+     re-parked in a visible box (otherwise hiding three sections would dump
+     all their styles into the first one),
+   · styles with no section (newly added, or their section was deleted) are
+     parked in the first active section so they never vanish,
+   · when the table does not exist yet (`sections === null`) the component
+     groups styles by category family on its own, so a pre-migration DB still
+     shows something sensible.
+
+   Visual language: soft card boxes, serif headings with a gold hairline,
+   rounded 4:5 images, uppercase letterspaced labels. No hover-only text —
+   everything the shopper needs is visible.                                       */
 
 interface StyleItem {
   key: string
@@ -11,7 +33,21 @@ interface StyleItem {
   image?: string
   position?: number
   is_enabled?: boolean
+  /** Category UUIDs this style belongs to (empty = every category). */
+  category_ids?: string[]
+  /** Homepage block this style sits in. */
+  section_id?: string | null
   [key: string]: unknown
+}
+
+interface StyleSection {
+  id: string
+  key: string
+  title: string
+  category_ids?: string[]
+  position?: number
+  /** Admin's "show on homepage" switch. */
+  is_active?: boolean
 }
 
 const FALLBACK: StyleItem[] = [
@@ -22,386 +58,266 @@ const FALLBACK: StyleItem[] = [
   { key: 'platinum', name: 'Platinum', sub: 'Precious white', image: 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?w=600&h=900&q=90&fit=crop' },
 ]
 
-export default function RingsByStyle({ initialStyles }: { initialStyles?: StyleItem[] }) {
-  const styles = initialStyles?.length
-    ? initialStyles.filter(s => s.is_enabled !== false)
-    : FALLBACK
-  const total = styles.length
+/* Admin rows can carry a blank image. Never pass '' to <img src> (the browser
+   re-requests the whole page); fall back to the matching stock shot and,
+   failing that, render a lettered plate instead of an image. */
+const FALLBACK_BY_KEY = new Map(FALLBACK.map(f => [f.key, f.image]))
+const styleImage = (s: StyleItem): string =>
+  String(s.image || '').trim() || String(FALLBACK_BY_KEY.get(s.key) || '')
 
-  const [current, setCurrent] = useState(0)
-  const autoRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const touchStartX = useRef(0)
-  const touchEndX = useRef(0)
-
-  const goTo = useCallback((idx: number) => {
-    if (!total) return
-    setCurrent(((idx % total) + total) % total)
-  }, [total])
-
-  const resetAuto = useCallback(() => {
-    if (autoRef.current) clearInterval(autoRef.current)
-    autoRef.current = setInterval(() => setCurrent(c => (c + 1) % total), 2500)
-  }, [total])
-
-  useEffect(() => {
-    if (!total) return
-    autoRef.current = setInterval(() => setCurrent(c => (c + 1) % total), 2500)
-    return () => { if (autoRef.current) clearTimeout(autoRef.current) }
-  }, [total])
-
-  const handlePrev = () => { goTo(current - 1); resetAuto() }
-  const handleNext = () => { goTo(current + 1); resetAuto() }
-
-  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.targetTouches[0].clientX }
-  const handleTouchMove = (e: React.TouchEvent) => { touchEndX.current = e.targetTouches[0].clientX }
-  const handleTouchEnd = () => {
-    const dist = touchStartX.current - touchEndX.current
-    if (dist > 50) { goTo(current + 1); resetAuto() }
-    else if (dist < -50) { goTo(current - 1); resetAuto() }
-  }
-
-  if (!total) return null
-
+function LetterPlate({ name }: { name: string }) {
   return (
-    <section className="rbs-root">
-      <style>{CSS}</style>
+    <div className="st-plate" aria-hidden>
+      {(name || '?').trim().slice(0, 1).toUpperCase()}
+    </div>
+  )
+}
 
-      {/* ── Title ── */}
-      <p className="rbs-title">Rings By Style</p>
-
-      {/* ════════ DESKTOP ════════ */}
-      <div className="rbs-desktop">
-        {styles.map(style => (
-          <Link
-            key={style.key}
-            href={`/collection?style=${style.key}`}
-            className="rbs-col"
-          >
-            <div className="rbs-img-wrap">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={style.image || ''}
-                alt={style.name}
-                className="rbs-img"
-                loading="lazy"
-                draggable={false}
-              />
-            </div>
-            <div className="rbs-labels">
-              <span className="rbs-lbl">{style.name.toUpperCase()}</span>
-              {style.sub && <span className="rbs-sub">{style.sub}</span>}
-            </div>
-          </Link>
-        ))}
+function StyleCard({ style }: { style: StyleItem }) {
+  const img = styleImage(style)
+  return (
+    <Link href={`/collection?style=${style.key}`} className="st-card">
+      <div className="st-media">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {img ? <img src={img} alt={style.name} loading="lazy" draggable={false} /> : <LetterPlate name={style.name} />}
       </div>
-
-      {/* ════════ MOBILE ════════ */}
-      <div
-        className="rbs-mobile"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        <button className="rbs-arrow rbs-arrow-l" onClick={handlePrev} aria-label="Previous">‹</button>
-
-        <div className="rbs-slider-viewport">
-          {styles.map((style, idx) => {
-            const diff = ((idx - current) % total + total) % total
-            const rel = diff > total / 2 ? diff - total : diff
-            const isActive = rel === 0
-            const isNext = rel === 1
-            const isPrev = rel === -1
-
-            return (
-              <Link
-                key={style.key}
-                href={`/collection?style=${style.key}`}
-                className="rbs-slide"
-                style={{
-                  transform: isActive
-                    ? 'translateX(-50%) scale(1)'
-                    : isPrev
-                      ? 'translateX(calc(-50% - 180px)) scale(0.62)'
-                      : isNext
-                        ? 'translateX(calc(-50% + 180px)) scale(0.62)'
-                        : `translateX(calc(-50% + ${rel * 180}px)) scale(0.4)`,
-                  opacity: isActive ? 1 : (isPrev || isNext) ? 0.45 : 0,
-                  zIndex: isActive ? 3 : (isPrev || isNext) ? 2 : 0,
-                  pointerEvents: isActive ? 'auto' : 'none',
-                }}
-                tabIndex={isActive ? 0 : -1}
-              >
-                <div className="rbs-slide-img-wrap">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={style.image || ''}
-                    alt={style.name}
-                    className="rbs-slide-img"
-                    loading="eager"
-                    draggable={false}
-                  />
-                </div>
-              </Link>
-            )
-          })}
-        </div>
-
-        <button className="rbs-arrow rbs-arrow-r" onClick={handleNext} aria-label="Next">›</button>
+      <div className="st-meta">
+        <span className="st-name">{style.name}</span>
+        {style.sub ? <span className="st-sub">{style.sub}</span> : null}
       </div>
+    </Link>
+  )
+}
 
-      {/* Mobile label */}
-      <div className="rbs-mobile-label">
-        <span className="rbs-mobile-name">{styles[current].name}</span>
-        {styles[current].sub && <span className="rbs-mobile-sub">{styles[current].sub}</span>}
-      </div>
-
-      {/* Dots (mobile only) */}
-      <div className="rbs-dots">
-        {styles.map((_, i) => (
-          <button
-            key={i}
-            className={`rbs-dot${i === current ? ' rbs-dot--on' : ''}`}
-            onClick={() => { goTo(i); resetAuto() }}
-            aria-label={`Style ${i + 1}`}
-          />
-        ))}
+function StyleBox({ title, styles }: { title: string; styles: StyleItem[] }) {
+  if (!styles.length) return null
+  return (
+    <section className="st-box">
+      <header className="st-head">
+        <h3 className="st-title">{title}</h3>
+        <span className="st-rule" aria-hidden />
+      </header>
+      <div className="st-grid">
+        {styles.map(s => <StyleCard key={s.key} style={s} />)}
       </div>
     </section>
   )
 }
 
-/* ══════════════════════════════════════════════════════
-   CSS
-══════════════════════════════════════════════════════ */
+export default function RingsByStyle({
+  initialStyles,
+  categories,
+  sections,
+}: {
+  initialStyles?: StyleItem[]
+  categories?: CategoryRef[]
+  /** `null` = pre-migration DB (table missing) → auto-group by category. */
+  sections?: StyleSection[] | null
+}) {
+  const styles = initialStyles?.length
+    ? initialStyles.filter(s => s.is_enabled !== false)
+    : FALLBACK
+
+  let boxes: Array<{ title: string; rows: StyleItem[] }> = []
+
+  if (Array.isArray(sections)) {
+    const active = [...sections]
+      .filter(s => s.is_active !== false)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      .filter(s => !!s.id)
+
+    if (active.length) {
+      const bySection = new Map<string, StyleItem[]>(active.map(s => [s.id, []]))
+      const allIds = new Set(sections.map(s => s.id))
+      const orphans: StyleItem[] = []
+      for (const st of styles) {
+        const id = st.section_id ? String(st.section_id) : ''
+        if (id && allIds.has(id)) {
+          // Belongs to a real section. If that section is switched OFF, its
+          // styles must stay off too — they are deliberately NOT parked in a
+          // visible box (that's what made all 19 pile into "Rings By Style").
+          if (bySection.has(id)) bySection.get(id)!.push(st)
+        } else {
+          // Truly unplaced: no section, or the section row was deleted.
+          orphans.push(st)
+        }
+      }
+      // Unplaced styles ride along with the first active section.
+      if (orphans.length) bySection.get(active[0].id)!.push(...orphans)
+      boxes = active
+        .map(s => ({ title: s.title || s.key || 'Styles', rows: bySection.get(s.id) || [] }))
+        .filter(b => b.rows.length > 0)
+    }
+    // No active section at all → admin turned the widget off completely.
+  } else {
+    // Pre-migration fallback: group by jewellery family ourselves.
+    boxes = groupByFamily(styles, categories || [])
+      .map(g => ({
+        title: g.title === 'Featured' ? 'Styles' : `${g.title} By Style`,
+        rows: g.rows,
+      }))
+      .filter(g => g.rows.length > 0)
+  }
+
+  if (!boxes.length) return null
+
+  return (
+    <div className="st-root">
+      <style>{CSS}</style>
+      <div className="st-stack">
+        {boxes.map(b => <StyleBox key={b.title} title={b.title} styles={b.rows} />)}
+      </div>
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════
+   CSS — soft stacked boxes, one per category
+══════════════════════════════════════ */
 const CSS = `
-
-/* ── Root ── */
-.rbs-root {
+.st-root {
   width: 100%;
-  overflow: hidden;
-  padding: 0 0 48px;
+  padding: clamp(40px, 6vw, 72px) 0 clamp(24px, 4vw, 48px);
 }
 
-/* ── Title ── */
-.rbs-title {
-  margin: 0;
-  padding: 56px 0 0;
-  text-align: center;
-  font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
-  font-size: 15px;
-  font-weight: 400;
-  letter-spacing: .55em;
-  text-transform: uppercase;
-  color: #1a2e4a;
-  margin-bottom: 48px;
-}
-
-/* ════════════════════════════════════════
-   DESKTOP
-════════════════════════════════════════ */
-.rbs-desktop {
+.st-stack {
+  width: min(1240px, calc(100% - clamp(24px, 5vw, 64px)));
+  margin: 0 auto;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  flex-wrap: nowrap;
-  gap: clamp(8px, 1.6vw, 28px);
-  /* vertical breathing room so the hover zoom is never clipped by root overflow */
-  padding: 20px clamp(16px, 3vw, 48px);
+  flex-direction: column;
+  /* Space BETWEEN sections now that the boxes have no padding of their own. */
+  gap: clamp(40px, 5vw, 72px);
 }
 
-.rbs-col {
-  flex: 0 1 auto;
-  min-width: 0;
+/* ── One category = one section. Deliberately NO panel: no background, no
+   border, no shadow — the block sits straight on the page, and the stack
+   gap below supplies the breathing room between sections. ── */
+.st-box {
+  position: relative;
+}
+
+.st-head {
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-decoration: none;
-  cursor: pointer;
-  z-index: 1;
-  transition: z-index 0s;
-}
-/* lift the hovered column above its neighbours so the scaled image is never covered/cut */
-.rbs-col:hover { z-index: 5; }
-
-/* Image wrapper */
-.rbs-img-wrap {
-  width: clamp(120px, 16vw, 200px);
-  height: clamp(160px, 21.3vw, 266px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: visible;
+  gap: 12px;
+  margin-bottom: clamp(20px, 2.6vw, 32px);
+  text-align: center;
 }
 
-.rbs-img {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
+.st-title {
+  margin: 0;
+  font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
+  font-size: clamp(21px, 2.4vw, 30px);
+  font-weight: 500;
+  font-style: italic;
+  letter-spacing: .04em;
+  color: #12233b;
+}
+
+.st-rule {
   display: block;
-  transition: transform .36s cubic-bezier(.16,1,.3,1);
-  transform-origin: center center;
+  width: 74px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #C9A96E 30%, #C9A96E 70%, transparent);
 }
 
-.rbs-col:hover .rbs-img { transform: scale(1.14); }
+/* ── Cards ── */
+.st-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+  gap: clamp(14px, 2vw, 26px);
+  justify-items: center;
+}
 
-.rbs-labels {
-  margin-top: 16px;
+.st-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-decoration: none;
+  width: 100%;
+  max-width: 230px;
+}
+
+/* No white card behind the photo: the media box is transparent and the whole
+   box multiplies into the page background, so the white studio backdrop of
+   each product shot disappears instead of showing as a white rectangle.
+   (Blend lives HERE, not on the img — a transform on hover would otherwise
+   isolate the img and switch the blend off exactly when it matters.) */
+.st-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: 16px;
+  overflow: hidden;
+  background: transparent;
+  mix-blend-mode: multiply;
+  transition: transform .35s cubic-bezier(.16, 1, .3, 1);
+}
+
+.st-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .6s cubic-bezier(.16, 1, .3, 1);
+}
+
+.st-plate {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #F6F1EA 0%, #EDE4D6 100%);
+  color: #B79B6E;
+  font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
+  font-size: clamp(3rem, 6vw, 4rem);
+  font-style: italic;
+  user-select: none;
+}
+
+.st-card:hover .st-media {
+  transform: translateY(-4px);
+}
+
+.st-card:hover .st-media img { transform: scale(1.07); }
+
+.st-meta {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-}
-
-.rbs-lbl {
-  font-size: clamp(8px, .75vw, 11px);
-  font-weight: 500;
-  letter-spacing: .28em;
-  text-transform: uppercase;
-  color: #1a2e4a;
-  white-space: nowrap;
-  transition: color .24s ease;
-}
-
-.rbs-col:hover .rbs-lbl { color: #C9A96E; }
-
-.rbs-sub {
-  font-size: clamp(8px, .65vw, 10px);
-  color: #5a7090;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity .26s ease;
-}
-
-.rbs-col:hover .rbs-sub { opacity: 1; }
-
-/* ════════════════════════════════════════
-   MOBILE CAROUSEL
-════════════════════════════════════════ */
-.rbs-mobile {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  height: 300px;
-  width: 100%;
-  overflow: hidden;
-}
-
-.rbs-slider-viewport {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.rbs-slide {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  margin-top: -120px;
-  width: 220px;
-  height: 220px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  transition: transform .45s cubic-bezier(.16,1,.3,1), opacity .45s ease;
-  will-change: transform, opacity;
-}
-
-.rbs-slide-img-wrap {
-  width: 220px;
-  height: 220px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.rbs-slide-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-
-/* Arrows */
-.rbs-arrow {
-  position: absolute;
-  top: 50%; transform: translateY(-50%);
-  z-index: 10;
-  width: 40px; height: 40px;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(250,249,246,0.9);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(26,46,74,.18);
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 22px; color: #1a2e4a;
-  box-shadow: 0 2px 8px rgba(0,0,0,.06);
-  transition: all .22s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.rbs-arrow:active { background: rgba(201,169,110,.15); border-color: #C9A96E; color: #C9A96E; }
-.rbs-arrow-l { left: 12px; }
-.rbs-arrow-r { right: 12px; }
-
-/* Mobile label */
-.rbs-mobile-label {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  margin-top: 16px;
-  min-height: 52px;
-}
-
-.rbs-mobile-name {
-  font-size: 22px;
-  font-weight: 400;
-  color: #1a2e4a;
-  letter-spacing: .08em;
-}
-
-.rbs-mobile-sub {
-  font-size: 13px;
-  color: #5a7090;
   text-align: center;
-  line-height: 1.6;
-  padding: 0 32px;
 }
 
-/* Dots */
-.rbs-dots {
-  display: none;
-  justify-content: center;
-  gap: 7px;
-  margin-top: 18px;
+.st-name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #12233b;
+  transition: color .25s ease;
 }
 
-.rbs-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: #d0d9e4;
-  border: none; padding: 0;
-  cursor: pointer;
-  transition: all .24s ease;
-  -webkit-tap-highlight-color: transparent;
+.st-card:hover .st-name { color: #C9A96E; }
+
+.st-sub {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6B7C93;
 }
 
-.rbs-dot--on { width: 22px; border-radius: 4px; background: #1a2e4a; }
-
-/* ════════════════════════════════════════
-   RESPONSIVE BREAKPOINTS
-════════════════════════════════════════ */
-@media (max-width: 768px) {
-  .rbs-desktop { display: none; }
-  .rbs-mobile  { display: flex; }
-  .rbs-mobile-label { display: flex; }
-  .rbs-dots    { display: flex; }
-  .rbs-root { padding: 0 0 40px; }
-  .rbs-title { font-size: 12px; letter-spacing: .42em; padding: 48px 0 0; margin-bottom: 0; }
+/* ══════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════ */
+@media (max-width: 720px) {
+  .st-root { padding: 32px 0 16px; }
+  .st-stack { width: calc(100% - 24px); gap: 34px; }
+  .st-title { font-size: 20px; }
+  /* Two cards per row — the whole box stays visible without swiping. */
+  .st-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .st-card { max-width: none; gap: 10px; }
+  .st-name { font-size: 10px; letter-spacing: .14em; }
+  .st-sub { font-size: 11.5px; }
 }
 `

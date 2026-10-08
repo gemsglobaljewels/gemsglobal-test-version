@@ -49,12 +49,18 @@ export default function HomeContent({
   initialStyles,
   initialDiamondShapes,
   initialCategories,
+  styleCategories,
+  styleSections,
 }: {
   initialFeatured: any[];
   heroData: any;
   initialStyles: any[];
   initialDiamondShapes: any[];
   initialCategories?: any[];
+  /** Real category rows (UUID + name) used to title group sections. */
+  styleCategories?: any[];
+  /** Admin-managed homepage blocks ("Rings By Style", …); null = pre-120 DB. */
+  styleSections?: any[] | null;
 }) {
   const [featured, setFeatured] = useState<any[]>(initialFeatured || []);
   const [featuredLabel, setFeaturedLabel] = useState("Featured Products");
@@ -123,8 +129,8 @@ export default function HomeContent({
         <HeroSection initialHeroData={heroData} />
         <ShopByCategories initialCategories={initialCategories} />
         <ShopByRecipient />
-        <RingsByStyle initialStyles={initialStyles} />
-        <DiamondShapes initialDiamondShapes={initialDiamondShapes} />
+        <RingsByStyle initialStyles={initialStyles} categories={styleCategories} sections={styleSections} />
+        <DiamondShapes initialDiamondShapes={initialDiamondShapes} categories={styleCategories} />
         {/* Featured Products */}
         <section className="py-24 border-y border-[var(--c-accent)]/8">
           <div className="container mx-auto px-6 sm:px-4">

@@ -37,6 +37,7 @@ export interface Product {
   name: string;
   category: string;
   categoryHierarchy?: string[];
+  category_id?: string | null;
   price: number;
   rating: number;
   reviews: number;
@@ -83,6 +84,9 @@ import {
   isSellableProduct,
   configuredRetailPrice,
   defaultVariantSelection,
+  sizeAppliesToCategory,
+  sizeLabelForCategory,
+  isRingCategory,
 } from '@/lib/variantPricing';
 export {
   normalizeDiscount,
@@ -93,6 +97,9 @@ export {
   isSellableProduct,
   configuredRetailPrice,
   defaultVariantSelection,
+  sizeAppliesToCategory,
+  sizeLabelForCategory,
+  isRingCategory,
 };
 
 export function isDisplayableImage(url: string | any): boolean {
@@ -191,6 +198,7 @@ export function mapApiProduct(p: any, allCategories?: any[]): Product | null {
       price_modifier: Number(v.price_modifier) || 0,
     })),
     size_options: p.size_options || [],
+    category_id: p.category_id || null,
     discount_percent: normalizeDiscount(p.discount_percent),
     label: (p.label && String(p.label).trim()) || null,
     _isMapped: true,
@@ -588,7 +596,9 @@ const QuickViewModal = memo(({ product, open, onClose, onAdd, wished, onWish }: 
   const closeRef = useRef<HTMLButtonElement>(null);
   const metalOptions = product.metal_options || [];
   const caratOptions = product.carat_options || [];
-  const sizeOptions = product.size_options || [];
+  // Category-aware: a necklace quick view never offers US ring sizes.
+  const sizeOptions = (product.size_options || []).filter((s: any) =>
+    sizeAppliesToCategory(s, (product as any).category_id));
   // Variant-aware price: first-variant default, follows the shopper's picks.
   const currentPrice = configuredRetailPrice(
     product,
@@ -762,7 +772,7 @@ const QuickViewModal = memo(({ product, open, onClose, onAdd, wished, onWish }: 
 
           {sizeOptions.length > 0 && (
             <div className="qve-optgroup">
-              <p className="qve-optlabel">Size</p>
+              <p className="qve-optlabel">{sizeLabelForCategory(product.category, product.categoryHierarchy).replace(/^Select /, '')}</p>
               <div className="qve-chips">
                 {sizeOptions.map((s: any) => (
                   <button key={s.name} type="button" onClick={() => setSize(s.name)}

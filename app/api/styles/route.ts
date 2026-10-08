@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
 import { refreshStorefront } from '@/lib/revalidate'
+import { autoAssignSections } from '@/lib/styleSections'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,21 +17,50 @@ export async function GET() {
     // Rarely-changing lookup data — safe for a few minutes on the edge.
     const cache = { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } }
     try {
-        const { data, error } = await supabaseServer
+        let data: any = null
+        let error: any = null
+        ;({ data, error } = await supabaseServer
             .from('ring_styles')
-            .select('key, name, sub, desc, image, is_enabled')
-            .order('name', { ascending: true })
+            .select('key, name, sub, desc, image, is_enabled, position, category_ids, section_id')
+            .order('name', { ascending: true }))
+        if (error) {
+            // Pre-migration DB (no category_ids / section_id yet) — retry lean.
+            const retry = await supabaseServer
+                .from('ring_styles')
+                .select('key, name, sub, desc, image, is_enabled, position, category_ids')
+                .order('name', { ascending: true })
+            data = retry.data
+            error = retry.error as any
+        }
+        if (error) {
+            // Older DB (no category_ids either) — still serve the real rows.
+            const retry2 = await supabaseServer
+                .from('ring_styles')
+                .select('key, name, sub, desc, image, is_enabled')
+                .order('name', { ascending: true })
+            data = retry2.data
+            error = retry2.error as any
+        }
         if (error) {
             // Table may not exist yet; fall back to defaults
             return NextResponse.json(DEFAULT_STYLES, cache)
         }
-        const rows = (Array.isArray(data) ? data : []).map((row, i) => {
-            if (!row.image) {
-                // Find matching default image by key or index
-                const def = DEFAULT_STYLES.find(d => d.key === row.key) || DEFAULT_STYLES[i % DEFAULT_STYLES.length]
-                return { ...row, image: def.image }
+        const rows = (Array.isArray(data) ? data : []).map((row: any) => {
+            const out = {
+                ...row,
+                // NULL/missing = every category.
+                category_ids: Array.isArray(row.category_ids) ? row.category_ids : [],
+                // Which homepage block this style belongs to (null = unplaced).
+                section_id: row.section_id || null,
             }
-            return row
+            if (!out.image) {
+                // Only the legacy ring styles carry a stock photo here — a
+                // keyless match (e.g. a new necklace style) keeps '' and the
+                // homepage renders its lettered plate instead of a wrong photo.
+                const def = DEFAULT_STYLES.find(d => d.key === row.key)
+                if (def) return { ...out, image: def.image }
+            }
+            return out
         })
         if (rows.length === 0) return NextResponse.json(DEFAULT_STYLES, cache)
         return NextResponse.json(rows, cache)
@@ -42,21 +72,35 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
     try {
         const body = await request.json().catch(() => ({}))
-        const items: Array<{ key: string; name?: string; sub?: string; desc?: string; image?: string; is_enabled?: boolean }> =
+        const items: Array<{ key: string; name?: string; sub?: string; desc?: string; image?: string; is_enabled?: boolean; category_ids?: string[]; section_id?: string | null }> =
             Array.isArray(body?.items) ? body.items : []
         if (items.length === 0) {
             return NextResponse.json({ error: 'items required' }, { status: 400 })
         }
-        // Try upsert; requires table ring_styles (key text primary key, name text, sub text, desc text, image text, is_enabled boolean)
-        const payload = items.map((it) => ({
-            key: it.key,
-            name: it.name ?? null,
-            sub: it.sub ?? null,
-            desc: it.desc ?? null,
-            image: it.image ?? null,
-            is_enabled: typeof it.is_enabled === 'boolean' ? it.is_enabled : null,
-        }))
-        const { data, error } = await supabaseServer.from('ring_styles').upsert(payload, { onConflict: 'key' }).select()
+        // Try upsert; requires table ring_styles (key text primary key, name text, sub text, desc text, image text, is_enabled boolean, category_ids text[], section_id uuid)
+        const buildPayload = (strip: boolean) => items.map((it) => {
+            const row: Record<string, any> = {
+                key: it.key,
+                name: it.name ?? null,
+                sub: it.sub ?? null,
+                desc: it.desc ?? null,
+                image: it.image ?? null,
+                is_enabled: typeof it.is_enabled === 'boolean' ? it.is_enabled : null,
+            }
+            if (!strip) {
+                row.category_ids = Array.isArray(it.category_ids) ? it.category_ids : []
+                // Which homepage block ("Rings By Style") this style lives in.
+                row.section_id = it.section_id || null
+            }
+            return row
+        })
+        let { data, error } = await supabaseServer.from('ring_styles').upsert(buildPayload(false), { onConflict: 'key' }).select()
+        if (error && /category_ids|section_id|42703|column/i.test(String((error as any)?.message || ''))) {
+            // Pre-migration DB — retry without the new columns.
+            const retry = await supabaseServer.from('ring_styles').upsert(buildPayload(true), { onConflict: 'key' }).select()
+            data = retry.data
+            error = retry.error as any
+        }
         if (error) {
             const merged = [
                 ...DEFAULT_STYLES.filter(d => !items.find(i => i.key === d.key)),
@@ -65,6 +109,13 @@ export async function PUT(request: NextRequest) {
             refreshStorefront(['/'])
             return NextResponse.json(merged, { status: 200 })
         }
+
+        // No section picked → work it out from the style's category: find the
+        // matching box, or create it ("<Family> By Style") if this is the first
+        // style of that family. So a new necklace style instantly gets its own
+        // homepage section, with the admin on/off switch in Admin → Styles.
+        await autoAssignSections(Array.isArray(data) ? data : [])
+
         refreshStorefront(['/'])
         return NextResponse.json(data || [], { status: 200 })
     } catch {

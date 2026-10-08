@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react'
 import {
   Upload, Smartphone, AlertCircle, X, Check, Save, Mail,
   Globe, MapPin, Share2, ShoppingCart, Image as ImageIcon,
-  Search, Zap
+  Search, Zap, Truck, CalendarClock
 } from 'lucide-react'
 import { fetchAndSyncSettings } from '@/lib/authStore'
 import { supabase } from '@/lib/supabase'
+import { SHIPPING_DEFAULTS, SHIPPING_KEYS } from '@/lib/shippingConfig'
 
 interface SiteSettings {
   logo_text: string; logo_em: string; logo_url: string; favicon_url: string
@@ -18,6 +19,14 @@ interface SiteSettings {
   instagram_url: string; youtube_url: string; pinterest_url: string; etsy_url: string
   payment_logos: string
   usd_inr_rate: string
+  // Checkout delivery methods (Site Settings → Shipping). Strings because
+  // site_settings stores plain text values.
+  shipping_standard_min_days: string
+  shipping_standard_max_days: string
+  shipping_standard_price: string
+  shipping_express_min_days: string
+  shipping_express_max_days: string
+  shipping_express_price: string
 }
 
 const TABS = [
@@ -27,6 +36,7 @@ const TABS = [
   { id: 'social', label: 'Social Media', icon: <Share2 size={14} strokeWidth={1.5} />, sub: 'Platform links' },
   { id: 'payments', label: 'Payments', icon: <ShoppingCart size={14} strokeWidth={1.5} />, sub: 'Card logos' },
   { id: 'currency', label: 'Currency', icon: <Globe size={14} strokeWidth={1.5} />, sub: 'USD → INR rate' },
+  { id: 'shipping', label: 'Shipping', icon: <Truck size={14} strokeWidth={1.5} />, sub: 'Delivery times & rates' },
 ]
 
 const PAGE_META: Record<string, { title: string; em: string; desc: string }> = {
@@ -36,6 +46,7 @@ const PAGE_META: Record<string, { title: string; em: string; desc: string }> = {
   social: { title: 'Social ', em: 'Media', desc: 'Instagram, YouTube, Pinterest and Etsy links' },
   payments: { title: 'Payment ', em: 'Gateways', desc: 'Footer payment card logos' },
   currency: { title: 'Currency ', em: 'Rate', desc: 'Fixed USD → INR rate for the whole site' },
+  shipping: { title: 'Shipping & ', em: 'Delivery', desc: 'Checkout delivery methods — day ranges and prices. The PDP estimate falls back to 2–3 weeks when a product has no dates.' },
 }
 
 const Label = ({ children }: { children: React.ReactNode }) => (
@@ -57,6 +68,13 @@ export default function AdminSettingsPage() {
     instagram_url: '', youtube_url: '', pinterest_url: '', etsy_url: '',
     payment_logos: '[]',
     usd_inr_rate: '',
+    // Shown until the admin saves the Shipping tab (and used as fallbacks).
+    [SHIPPING_KEYS.stdMin]: String(SHIPPING_DEFAULTS.stdMin),
+    [SHIPPING_KEYS.stdMax]: String(SHIPPING_DEFAULTS.stdMax),
+    [SHIPPING_KEYS.stdPrice]: String(SHIPPING_DEFAULTS.stdPrice),
+    [SHIPPING_KEYS.expMin]: String(SHIPPING_DEFAULTS.expMin),
+    [SHIPPING_KEYS.expMax]: String(SHIPPING_DEFAULTS.expMax),
+    [SHIPPING_KEYS.expPrice]: String(SHIPPING_DEFAULTS.expPrice),
   })
   const [liveRate, setLiveRate] = useState('')
 
@@ -596,6 +614,94 @@ export default function AdminSettingsPage() {
                 )}
               </div>
               <p className="a-hint">Press Save Changes on top to apply. New fixed rate applies everywhere within a minute.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'shipping' && (
+        <div className="a-grid-2" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div className="a-card">
+            <div className="a-card-head">
+              <div>
+                <div className="a-card-title">Standard <em>Shipping</em></div>
+                <div className="a-card-sub">Slower, cheaper method on checkout</div>
+              </div>
+              <Truck size={16} strokeWidth={1.5} style={{ color: 'var(--c-accent)' }} />
+            </div>
+            <div className="a-card-body">
+              <div className="a-form-grid">
+                <div className="a-field">
+                  <Label>Delivery — from (days)</Label>
+                  <input className="a-input" type="number" min="0"
+                    value={settings[SHIPPING_KEYS.stdMin]}
+                    onChange={e => set(SHIPPING_KEYS.stdMin, e.target.value)}
+                    placeholder="10" />
+                </div>
+                <div className="a-field">
+                  <Label>Delivery — to (days)</Label>
+                  <input className="a-input" type="number" min="0"
+                    value={settings[SHIPPING_KEYS.stdMax]}
+                    onChange={e => set(SHIPPING_KEYS.stdMax, e.target.value)}
+                    placeholder="20" />
+                </div>
+              </div>
+              <div className="a-field" style={{ marginTop: 12 }}>
+                <Label>Price (USD)</Label>
+                <input className="a-input" type="number" min="0" step="0.01"
+                  value={settings[SHIPPING_KEYS.stdPrice]}
+                  onChange={e => set(SHIPPING_KEYS.stdPrice, e.target.value)}
+                  placeholder="30" />
+                <p className="a-hint">
+                  Checkout shows <strong>{settings[SHIPPING_KEYS.stdMin] || SHIPPING_DEFAULTS.stdMin}–{settings[SHIPPING_KEYS.stdMax] || SHIPPING_DEFAULTS.stdMax} Days</strong>
+                  {' '}· price <strong>${settings[SHIPPING_KEYS.stdPrice] || SHIPPING_DEFAULTS.stdPrice}</strong>. Set price to 0 to keep it complimentary.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="a-card">
+            <div className="a-card-head">
+              <div>
+                <div className="a-card-title">Express <em>Shipping</em></div>
+                <div className="a-card-sub">Faster method on checkout</div>
+              </div>
+              <Zap size={16} strokeWidth={1.5} style={{ color: 'var(--c-accent)' }} />
+            </div>
+            <div className="a-card-body">
+              <div className="a-form-grid">
+                <div className="a-field">
+                  <Label>Delivery — from (days)</Label>
+                  <input className="a-input" type="number" min="0"
+                    value={settings[SHIPPING_KEYS.expMin]}
+                    onChange={e => set(SHIPPING_KEYS.expMin, e.target.value)}
+                    placeholder="5" />
+                </div>
+                <div className="a-field">
+                  <Label>Delivery — to (days)</Label>
+                  <input className="a-input" type="number" min="0"
+                    value={settings[SHIPPING_KEYS.expMax]}
+                    onChange={e => set(SHIPPING_KEYS.expMax, e.target.value)}
+                    placeholder="8" />
+                </div>
+              </div>
+              <div className="a-field" style={{ marginTop: 12 }}>
+                <Label>Price (USD)</Label>
+                <input className="a-input" type="number" min="0" step="0.01"
+                  value={settings[SHIPPING_KEYS.expPrice]}
+                  onChange={e => set(SHIPPING_KEYS.expPrice, e.target.value)}
+                  placeholder="50" />
+                <p className="a-hint">
+                  Checkout shows <strong>{settings[SHIPPING_KEYS.expMin] || SHIPPING_DEFAULTS.expMin}–{settings[SHIPPING_KEYS.expMax] || SHIPPING_DEFAULTS.expMax} Days</strong>
+                  {' '}· price <strong>${settings[SHIPPING_KEYS.expPrice] || SHIPPING_DEFAULTS.expPrice}</strong>.
+                </p>
+              </div>
+              <hr className="a-divider" />
+              <p className="a-hint">
+                <CalendarClock size={12} style={{ display: 'inline', verticalAlign: '-2px' }} />{' '}
+                Both methods also drive the “Estimated arrival” dates shoppers see in checkout,
+                and the PDP estimate uses a product’s own dates (or 2–3 weeks from today).
+              </p>
             </div>
           </div>
         </div>

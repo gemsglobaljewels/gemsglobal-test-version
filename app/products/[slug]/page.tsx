@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import ProductDetails from "./ProductDetails";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { loadGlobalSizes, buildProductSizes } from "@/lib/productSizes";
 
 // Product detail is non-personalized; cache each rendered page (ISR) instead of
 // re-running 4 Supabase queries (product + all categories + metal/size options)
@@ -85,6 +86,12 @@ async function getProduct(slug: string): Promise<Product | null> {
     .eq('product_id', data.id)
     .order('created_at', { ascending: true });
 
+  // Category-aware sizes: saved per-product rows win, otherwise the global
+  // sizes that apply to this category (so a necklace offers 14–24 inch even
+  // when admin never ticked sizes for it). See lib/productSizes.ts.
+  const globalSizes = await loadGlobalSizes();
+  const sizeRows = buildProductSizes(sizeOptions || [], data.category_id, globalSizes);
+
   const { data: caratOptions } = await supabaseServer
     .from('product_carat_options')
     .select('*')
@@ -114,12 +121,7 @@ async function getProduct(slug: string): Promise<Product | null> {
       price_modifier: Number(mo.price_modifier) || 0,
       is_default: mo.is_default
     })),
-    size_options: (sizeOptions || []).map((so: any) => ({
-      key: so.key,
-      name: so.size_name,
-      price_modifier: Number(so.price_modifier) || 0,
-      is_default: so.is_default
-    })),
+    size_options: sizeRows,
     carat_options: (caratOptions || []).map((co: any) => ({
       key: co.key,
       name: co.carat_name,

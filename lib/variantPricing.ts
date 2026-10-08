@@ -139,3 +139,48 @@ export function defaultVariantSelection(p: any): { metal: string; carat: string 
   if (carats.length > 0 && !carat) carat = optName(carats[0], 'carat');
   return { metal: String(metal || ''), carat: String(carat || '') };
 }
+
+/* ── Per-category sizes ───────────────────────────────────────────────────
+   Size options carry optional `category_ids` (TEXT[] of category UUIDs).
+   NULL / missing / empty array = universal (legacy behaviour). */
+
+/** True when a size option applies to the given product category id. */
+export function sizeAppliesToCategory(option: any, productCategoryId?: string | null): boolean {
+  const cats = (option as any)?.category_ids;
+  if (!Array.isArray(cats) || cats.length === 0) return true;
+  if (!productCategoryId) return true;
+  return cats.map(String).includes(String(productCategoryId));
+}
+
+const RING_SLUGS = new Set([
+  'engagement-rings', 'solitaire', 'three-stone-ring', 'wedding-bands', 'eternity-bands',
+]);
+
+function categoryWords(category?: string | null, hierarchy?: string[] | null): string[] {
+  const out: string[] = [];
+  if (category) out.push(String(category).toLowerCase());
+  if (Array.isArray(hierarchy)) {
+    for (const h of hierarchy) out.push(String(h || '').toLowerCase());
+  }
+  return out;
+}
+
+/** Section heading for the size picker, adapted to the product's category. */
+export function sizeLabelForCategory(category?: string | null, hierarchy?: string[] | null): string {
+  const words = categoryWords(category, hierarchy);
+  const hasEarring = words.some((w) => w.includes('earring'));
+  const hasRing = !hasEarring && words.some((w) => w.includes('ring'));
+  if (words.some((w) => w.includes('necklace'))) return 'Select Length (inch)';
+  if (words.some((w) => w.includes('bracelet'))) return 'Select Size (inch)';
+  if (hasRing) return 'Select Size (US)';
+  return 'Select Size';
+}
+
+/** True for ring-type categories (US sizing applies). */
+export function isRingCategory(category?: string | null, hierarchy?: string[] | null): boolean {
+  const words = categoryWords(category, hierarchy);
+  const slugOf = (s: string) =>
+    String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  if (words.some((w) => RING_SLUGS.has(slugOf(w)))) return true;
+  return words.some((w) => w.includes('ring')) && !words.some((w) => w.includes('earring'));
+}

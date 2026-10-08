@@ -33,20 +33,92 @@ const DEFAULT_RING_STYLES = [
 
 async function getRingStyles() {
     try {
-        const { data, error } = await supabaseServer
+        const LEAN = 'key, name, sub, desc, image, is_enabled, position';
+        let data: any = null;
+        let error: any = null;
+        ({ data, error } = await supabaseServer
             .from('ring_styles')
-            .select('key, name, sub, desc, image, is_enabled, position')
-            .order('position', { ascending: true });
+            .select(`${LEAN}, category_ids, section_id`)
+            .order('position', { ascending: true }));
+        if (error) {
+            // Pre-migration DB (no category_ids / section_id column yet) — keep
+            // serving the real admin-managed styles instead of the fallback.
+            const retry = await supabaseServer
+                .from('ring_styles')
+                .select(`${LEAN}, category_ids`)
+                .order('position', { ascending: true });
+            data = retry.data;
+            error = retry.error;
+        }
+        if (error) {
+            // Pre-migration DB (no category_ids column yet) — keep serving the
+            // real admin-managed styles instead of the built-in fallback.
+            const retry2 = await supabaseServer
+                .from('ring_styles')
+                .select(LEAN)
+                .order('position', { ascending: true });
+            data = retry2.data;
+            error = retry2.error;
+        }
         if (error) {
             console.error('[Page getRingStyles] Error:', error);
             return DEFAULT_RING_STYLES;
         }
         const rows = Array.isArray(data) ? data : [];
         if (rows.length === 0) return DEFAULT_RING_STYLES;
-        return rows;
+        // NULL/missing (legacy or pre-migration) = every category / unplaced.
+        return rows.map((r: any) => ({
+            ...r,
+            category_ids: Array.isArray(r.category_ids) ? r.category_ids : [],
+            section_id: r.section_id || null,
+        }));
     } catch (e) {
         console.error('[Page getRingStyles] Catch Error:', e);
         return DEFAULT_RING_STYLES;
+    }
+}
+
+/* Homepage style sections — "Rings By Style", "Bracelets By Style" … Each row
+   carries its own title, order and a show-on-home switch (migration 120).
+   Returns null when the table does not exist yet, so the homepage can fall
+   back to grouping styles by category on its own. */
+async function getStyleSections() {
+    try {
+        const { data, error } = await supabaseServer
+            .from('style_sections')
+            .select('id, key, title, category_ids, position, is_active')
+            .order('position', { ascending: true });
+        if (error) return null;
+        return (Array.isArray(data) ? data : []).map((s: any) => ({
+            id: String(s.id),
+            key: String(s.key || ''),
+            title: String(s.title || s.key || ''),
+            category_ids: Array.isArray(s.category_ids) ? s.category_ids : [],
+            position: typeof s.position === 'number' ? s.position : 0,
+            is_active: s.is_active !== false,
+        }));
+    } catch {
+        return null;
+    }
+}
+
+/* Categories used to title the homepage style sections (Rings / Necklaces /
+   Bracelets …). Kept separate from getHomeCategories: that one returns display
+   ids for links, this one must return the real UUIDs for category_ids matching. */
+async function getStyleCategories() {
+    try {
+        const { data, error } = await supabaseServer
+            .from('categories')
+            .select('id, name, slug')
+            .order('name', { ascending: true });
+        if (error || !Array.isArray(data)) return [];
+        return data.map((c: any) => ({
+            id: String(c.id),
+            name: String(c.name || ''),
+            slug: String(c.slug || ''),
+        }));
+    } catch {
+        return [];
     }
 }
 
@@ -114,7 +186,11 @@ async function getDiamondShapes() {
         }
         const rows = Array.isArray(data) ? data : [];
         if (rows.length === 0) return DEFAULT_SHAPES;
-        return rows;
+        // NULL/missing = every category (a shape is a stone cut).
+        return rows.map((r: any) => ({
+            ...r,
+            category_ids: Array.isArray(r.category_ids) ? r.category_ids : [],
+        }));
     } catch (e) {
         console.error('[Page getDiamondShapes] Catch Error:', e);
         return DEFAULT_SHAPES;
@@ -280,12 +356,14 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-    const [products, heroData, initialStyles, initialDiamondShapes, initialCategories] = await Promise.all([
+    const [products, heroData, initialStyles, initialDiamondShapes, initialCategories, styleCategories, styleSections] = await Promise.all([
         getFeaturedProducts(),
         getHeroData(),
         getRingStyles(),
         getDiamondShapes(),
         getHomeCategories(),
+        getStyleCategories(),
+        getStyleSections(),
     ]);
 
     // Organization Schema
@@ -335,7 +413,7 @@ export default async function Page() {
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
             />
-            <HomeContent initialFeatured={products} heroData={heroData} initialStyles={initialStyles} initialDiamondShapes={initialDiamondShapes} initialCategories={initialCategories} />
+            <HomeContent initialFeatured={products} heroData={heroData} initialStyles={initialStyles} initialDiamondShapes={initialDiamondShapes} initialCategories={initialCategories} styleCategories={styleCategories} styleSections={styleSections} />
         </>
     );
 }

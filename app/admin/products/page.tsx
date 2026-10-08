@@ -342,6 +342,7 @@ export default function AdminProductsPage() {
             placeholder="Search creation by name or SKU..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
           />
         </div>
 

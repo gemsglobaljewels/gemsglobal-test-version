@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, AlertCircle, X, Plus, Upload, Video, Diamond, Check, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -8,6 +8,9 @@ import { useToast } from "@/hooks/use-toast";
 import RichTextEditor from "@/components/RichTextEditor";
 import { resolveAdminFxRate } from "@/lib/adminRate";
 import { extractDriveId, isDriveUrl } from "@/lib/video";
+import { sizeAppliesToCategory } from "@/lib/variantPricing";
+import { optionAppliesToCategory, defaultScopeFor } from "@/lib/categoryScope";
+import { estimatedDeliveryText } from "@/lib/delivery";
 
 interface CustomOptionItem {
   key: string;
@@ -75,6 +78,8 @@ export default function AddProductPage() {
     carat: '', color: '', clarity: '', metal: '', style: '',
     diamond_shape: '', diamond_cut: '', is_featured: false,
     stock_quantity: 10,
+    // Estimated delivery window — empty = "2–3 weeks from today" on the PDP.
+    delivery_from: '', delivery_to: '',
   })
   const [discountPercent, setDiscountPercent] = useState(0)
   const [label, setLabel] = useState('')
@@ -93,6 +98,16 @@ export default function AddProductPage() {
   const [bulkDelMetals, setBulkDelMetals] = useState<string[]>([])
   const [bulkDelCarats, setBulkDelCarats] = useState<string[]>([])
   const [bulkDelSizes, setBulkDelSizes] = useState<string[]>([])
+  // Per-category sizes: picker state. `newSizeCats` = categories for the size
+  // being added: null = default (this product's category), [] = all categories.
+  // `showAllSizes` lifts the category filter so every global size can still
+  // be managed from any product.
+  // `expandedSizeKey` opens the inline applies-to editor for one size row.
+  const [newSizeCats, setNewSizeCats] = useState<string[] | null>(null)
+  const [showAllSizes, setShowAllSizes] = useState(false)
+  const [expandedSizeKey, setExpandedSizeKey] = useState<string | null>(null)
+  // Draft applies-to selections while a size row's inline editor is open.
+  const [editedSizeCats, setEditedSizeCats] = useState<Record<string, string[]>>({})
 
   // Carat Options
   const [caratOptions, setCaratOptions] = useState<any[]>([])
@@ -175,9 +190,9 @@ export default function AddProductPage() {
   const [videoUploading, setVideoUploading] = useState(false)
   const [model3d, setModel3d] = useState<string | null>(null)
   const [model3dUploading, setModel3dUploading] = useState(false)
-  const [ringStyles, setRingStyles] = useState<{ key: string; name: string; is_enabled?: boolean }[]>([])
+  const [ringStyles, setRingStyles] = useState<{ key: string; name: string; is_enabled?: boolean; category_ids?: string[] }[]>([])
   const [newStyleName, setNewStyleName] = useState('')
-  const [diamondShapes, setDiamondShapes] = useState<{ key: string; name: string; is_enabled?: boolean; model_3d?: string }[]>([])
+  const [diamondShapes, setDiamondShapes] = useState<{ key: string; name: string; is_enabled?: boolean; model_3d?: string; category_ids?: string[] }[]>([])
   const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error' | 'none', msg: string }>({ type: 'none', msg: '' })
 
   useEffect(() => {
@@ -382,13 +397,15 @@ export default function AddProductPage() {
     const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
     const pm = parseFloat(newSizePrice) || 0
     const priceMod = priceCurrency === 'USD' ? pm : Math.round((pm / fxRate) * 100) / 100
+    // Smart default: null = this product's category; explicit [] = all.
+    const cats = newSizeCats === null ? (productCatId ? [productCatId] : []) : newSizeCats
     try {
       setLoading(true)
       const r = await fetch('/api/size-options', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: [{ key, name, price_modifier: priceMod, is_enabled: true, position: sizeOptions.length }]
+          items: [{ key, name, price_modifier: priceMod, is_enabled: true, position: sizeOptions.length, category_ids: cats }]
         }),
       })
       if (r.ok) {
@@ -401,6 +418,7 @@ export default function AddProductPage() {
         setProductSizePrices(prev => ({ ...prev, [key]: newSizePrice }))
         setNewSizeName('')
         setNewSizePrice('0')
+        setNewSizeCats(null)
         showStatus('success', 'New size option added successfully');
       } else {
         setError('Failed to add new size option');
@@ -415,8 +433,22 @@ export default function AddProductPage() {
   const addNewStyle = async () => {
     const name = newStyleName.trim(); if (!name) return
     const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    // Stamp the product's category so the style lands in the right homepage
+    // section instead of the global "Featured" bucket.
+    const category_ids = defaultScopeFor(productCatId)
+    // …and place it in the homepage section that matches this category
+    // ("Rings By Style" for a ring, "Necklaces By Style" for a necklace).
+    let section_id: string | null = null
     try {
-      const r = await fetch('/api/styles', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: [{ key, name, is_enabled: true }] }) })
+      const list = await fetch('/api/style-sections', { cache: 'no-store' }).then(r => r.json())
+      const rows = Array.isArray(list) ? list : []
+      // Matching section by category, else null → the API creates the right
+      // box itself ("Necklaces By Style") for a category that has none yet.
+      section_id =
+        (productCatId ? rows.find((s: any) => s.id && (s.category_ids || []).includes(productCatId))?.id : undefined) || null
+    } catch { section_id = null }
+    try {
+      const r = await fetch('/api/styles', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: [{ key, name, is_enabled: true, category_ids, section_id }] }) })
       if (r.ok) {
         const j = await r.json()
         setRingStyles((Array.isArray(j) ? j : []).filter((x: any) => x.is_enabled !== false))
@@ -425,7 +457,7 @@ export default function AddProductPage() {
         return
       }
     } catch { }
-    setRingStyles(p => p.find(s => s.key === key) ? p : [...p, { key, name, is_enabled: true }])
+    setRingStyles(p => p.find(s => s.key === key) ? p : [...p, { key, name, is_enabled: true, category_ids, section_id } as any])
     setFormData(p => ({ ...p, style: key })); setNewStyleName('')
   }
 
@@ -617,6 +649,84 @@ export default function AddProductPage() {
     finally { setLoading(false) }
   }
 
+  // ── Per-category sizes ──────────────────────────────────────────────
+  // This product's category id (child wins over root).
+  const productCatId = selectedSubCategoryId || selectedRootCategoryId || ''
+  // Style / shape dropdowns are category-aware too: a necklace form lists
+  // necklace styles (and any universal ones), never ring-only entries.
+  const visibleRingStyles = useMemo(
+    () => ringStyles.filter(s => (s as any).is_enabled !== false && optionAppliesToCategory(s, productCatId)),
+    [ringStyles, productCatId]
+  )
+  const visibleDiamondShapes = useMemo(
+    () => diamondShapes.filter(s => optionAppliesToCategory(s, productCatId)),
+    [diamondShapes, productCatId]
+  )
+  // Dropping a pick that no longer applies keeps the saved value honest when
+  // the admin switches category mid-form. Never runs before the style list
+  // itself has loaded, or it would wipe a valid pick.
+  useEffect(() => {
+    if (!productCatId || ringStyles.length === 0) return
+    setFormData(p => {
+      if (p.style && !ringStyles.some(s => s.key === p.style && optionAppliesToCategory(s, productCatId))) {
+        return { ...p, style: '' }
+      }
+      return p
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productCatId])
+  // Rows shown in the picker: only sizes for this category (plus universal),
+  // unless the admin lifts the filter to manage the whole global list.
+  const visibleSizeOptions = useMemo(() => {
+    const enabled = sizeOptions.filter(o => o.is_enabled !== false)
+    if (showAllSizes || !productCatId) return enabled
+    return enabled.filter(o => sizeAppliesToCategory(o, productCatId))
+  }, [sizeOptions, showAllSizes, productCatId])
+  // Name of the category being picked ("" = none) — drives the header chip
+  // and the segmented control, so the admin always sees which category's
+  // sizes are on screen.
+  const sizeCatName = productCatId
+    ? (categories.find((c: any) => String(c.id) === String(productCatId))?.name || '')
+    : ''
+  const totalSizeCount = sizeOptions.filter(o => o.is_enabled !== false).length
+  // When the category changes, drop ticked sizes that no longer apply, so a
+  // necklace can never keep a ring size ticked by accident.
+  useEffect(() => {
+    if (!productCatId) return
+    setSelectedSizes(prev => prev.filter(k => {
+      const o = sizeOptions.find(x => x.key === k)
+      return !o || sizeAppliesToCategory(o, productCatId)
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productCatId])
+  // Human label for a size row's applies-to set.
+  const sizeAppliesLabel = (o: any): string => {
+    const cats: string[] = Array.isArray(o?.category_ids) ? o.category_ids : []
+    if (cats.length === 0) return 'All categories'
+    const names = cats
+      .map(id => categories.find((c: any) => String(c.id) === String(id))?.name)
+      .filter(Boolean) as string[]
+    if (names.length === 0) return `${cats.length} categor${cats.length === 1 ? 'y' : 'ies'}`
+    return names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2}`
+  }
+  // Persist an applies-to edit for one size (full row re-sent: the PUT
+  // upserts by key and nulls any omitted scalar, so send everything).
+  const saveSizeCats = async (opt: any, cats: string[]) => {
+    try {
+      setLoading(true)
+      const r = await fetch('/api/size-options', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [{ key: opt.key, name: opt.name, price_modifier: Number(opt.price_modifier) || 0, is_enabled: opt.is_enabled !== false, position: Number(opt.position) || 0, category_ids: cats }] }),
+      })
+      if (!r.ok) { setError('Failed to save size categories'); return }
+      setSizeOptions(prev => prev.map(o => o.key === opt.key ? { ...o, category_ids: cats } : o))
+      setExpandedSizeKey(null)
+      showStatus('success', 'Size categories saved');
+    } catch { setError('Failed to save size categories') }
+    finally { setLoading(false) }
+  }
+
   const handleAddCategory = async () => {
     if (!newCategory.trim()) return
     try {
@@ -692,6 +802,17 @@ export default function AddProductPage() {
     }
     setPriceCurrency(next)
     try { localStorage.setItem('admin_currency_pref', next) } catch { }
+  }
+
+  // Enter inside a field must NOT submit the form — an accidental save used to
+  // fire mid-typing. Only the explicit "Save" button may submit.
+  const stopEnterSubmit = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== 'Enter') return
+    const el = e.target as HTMLElement
+    if (el.tagName === 'TEXTAREA') return                 // newline in descriptions
+    if (el.tagName === 'BUTTON') return                   // Enter = click on a focused button
+    if ((el as HTMLInputElement).type === 'submit') return
+    e.preventDefault()
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -987,6 +1108,47 @@ export default function AddProductPage() {
         .np-mc-cell-muted { font-size: 12px; color: var(--c-text-muted); font-weight: 400; }
         .np-mc-check { display: flex; justify-content: center; }
         .np-mc-del { display: flex; justify-content: center; }
+
+        /* ── Size-options picker (category-scoped) ───────────────────────────
+           One line per size: tick · name(+scope) · upcharge · delete. The
+           scope row only shows in "All categories" mode, so the default
+           filtered view is clean — just sizes for the category in hand. */
+        .sz-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+        .sz-seg { display: inline-flex; padding: 3px; border: 1px solid var(--c-border); border-radius: 999px; background: var(--c-surface); }
+        .sz-seg-btn {
+          border: none; background: transparent; cursor: pointer; border-radius: 999px;
+          padding: 7px 15px; font-family: var(--font-dmsans); font-size: 11.5px; font-weight: 600;
+          letter-spacing: .04em; color: var(--c-text-muted); transition: background .15s, color .15s;
+        }
+        .sz-seg-btn:hover:not(:disabled) { color: var(--c-text); }
+        .sz-seg-btn:disabled { opacity: .5; cursor: not-allowed; }
+        .sz-seg-btn.is-on { background: var(--c-text); color: #fff; }
+        .sz-count { font-family: var(--font-dmsans); font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--c-text-muted); }
+        .sz-actions-bar { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+        .sz-hint { font-family: var(--font-dmsans); font-size: 11px; color: var(--c-text-muted); }
+        .sz-cat-chip {
+          font-family: var(--font-dmsans); font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
+          text-transform: uppercase; color: var(--c-accent); background: var(--c-surface-2);
+          border: 1px solid var(--c-border); border-radius: 999px; padding: 3px 11px;
+        }
+        .sz-grid { display: grid; grid-template-columns: 26px minmax(150px, 1.5fr) minmax(130px, 1fr) 92px; gap: 12px; align-items: center; }
+        .sz-head {
+          border-bottom: 1px solid var(--c-border); padding: 0 6px 10px;
+          font-family: var(--font-dmsans); font-size: 10px; font-weight: 600;
+          letter-spacing: .12em; text-transform: uppercase; color: var(--c-text-muted);
+        }
+        .sz-row { padding: 9px 6px; border-bottom: 1px dashed rgba(0,0,0,.07); }
+        .sz-row:hover { background: rgba(140,116,86,.04); border-radius: 8px; }
+        .sz-name { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+        .sz-name b { font-family: var(--font-dmsans); font-size: 13px; font-weight: 600; color: var(--c-text); }
+        .sz-scope {
+          font-family: var(--font-dmsans); font-size: 10.5px; color: var(--c-text-muted);
+          background: var(--c-surface-2); border: 1px solid var(--c-border);
+          border-radius: 999px; padding: 2px 9px; white-space: nowrap;
+        }
+        .sz-cell-end { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+        .sz-scope-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 6px 10px 44px; }
+        .sz-editor { margin: 0 0 12px 44px; padding: 12px; border: 1px dashed var(--c-border); border-radius: var(--radius); background: var(--c-surface); }
         .np-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
         .np-chip {
           height: 34px; padding: 0 14px;
@@ -1040,7 +1202,7 @@ export default function AddProductPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} onKeyDown={stopEnterSubmit}>
         <div className="a-grid-2">
 
           {/* ── MAIN CONTENT ── */}
@@ -1136,6 +1298,29 @@ export default function AddProductPage() {
                     <label className="a-label">Stock Quantity</label>
                     <input className="a-input" type="number" name="stock_quantity" value={formData.stock_quantity} onChange={handleChange} />
                   </div>
+                </div>
+
+                <hr className="a-divider" />
+
+                <div className="a-field">
+                  <label className="a-label">Estimated delivery</label>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                    <div style={{ flex: '1 1 170px' }}>
+                      <span className="a-hint" style={{ display: 'block', marginBottom: 5 }}>Deliver from</span>
+                      <input className="a-input" type="date" name="delivery_from" value={formData.delivery_from} onChange={handleChange} />
+                    </div>
+                    <div style={{ flex: '1 1 170px' }}>
+                      <span className="a-hint" style={{ display: 'block', marginBottom: 5 }}>Deliver to</span>
+                      <input className="a-input" type="date" name="delivery_to" value={formData.delivery_to} onChange={handleChange} />
+                    </div>
+                    <div style={{ flex: '1 1 210px', padding: '10px 12px', border: '1px dashed var(--c-border, #E6DCCB)', borderRadius: 10, background: 'var(--c-surface, #FBF8F3)', fontSize: 12, lineHeight: 1.5, color: 'var(--c-muted, #7A6E5F)' }}>
+                      Shopper sees{' '}
+                      <strong style={{ color: 'var(--c-accent)', fontWeight: 600 }}>{estimatedDeliveryText(formData)}</strong>
+                    </div>
+                  </div>
+                  <p className="a-hint" style={{ marginTop: 8 }}>
+                    Leave both empty → the product page automatically shows 2–3 weeks from today.
+                  </p>
                 </div>
               </div>
             </div>
@@ -1257,7 +1442,11 @@ export default function AddProductPage() {
 
                 <div className="a-form-grid">
                   <div className="a-field">
-                    <label className="a-label">Cinematic Video</label>
+                    <label className="a-label">Cinematic Videos</label>
+                    <p className="a-hint" style={{ margin: '0 0 8px' }}>
+                      Add as many as you like — repeat the upload or the link. Every video gets its own playable tile on the
+                      product page (the first one is the main video).
+                    </p>
                     <button type="button" className="a-btn a-btn--ghost a-btn--block" onClick={() => videoFileRef.current?.click()}>
                       <input type="file" accept="video/*" ref={videoFileRef} style={{ display: 'none' }} onChange={e => handleVideoFile(e.target.files?.[0] || null)} />
                       <Video size={16} /> {videoUploading ? 'Uploading...' : 'Upload Video File'}
@@ -1325,7 +1514,7 @@ export default function AddProductPage() {
                   <div className="a-row" style={{ gap: 12 }}>
                     <select className="a-select" style={{ flex: 1 }} name="style" value={formData.style} onChange={handleChange}>
                       <option value="">Select a style</option>
-                      {ringStyles.map(s => <option key={s.key} value={s.key}>{s.name}</option>)}
+                      {visibleRingStyles.map(s => <option key={s.key} value={s.key}>{s.name}</option>)}
                     </select>
                     <input className="a-input" style={{ flex: 1 }} value={newStyleName} onChange={e => setNewStyleName(e.target.value)} placeholder="Custom style name..." />
                     <button type="button" className="a-btn a-btn--subtle" onClick={addNewStyle}>Add</button>
@@ -1337,7 +1526,7 @@ export default function AddProductPage() {
                     <label className="a-label">Shape</label>
                     <select className="a-select" name="diamond_shape" value={formData.diamond_shape} onChange={handleChange}>
                       <option value="">Select shape</option>
-                      {diamondShapes.map(s => <option key={s.key} value={s.key}>{s.name}</option>)}
+                      {visibleDiamondShapes.map(s => <option key={s.key} value={s.key}>{s.name}</option>)}
                     </select>
                   </div>
                   <div className="a-field">
@@ -1585,17 +1774,46 @@ export default function AddProductPage() {
                 </div>
                 <hr className="a-divider" />
 
-                <div className="a-section-title">Available Size Options</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                  <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'var(--c-text-muted)' }}>
-                    Tick rows to delete several sizes at once
+                <div className="a-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    Available Size Options
+                    {sizeCatName && <span className="sz-cat-chip">for {sizeCatName}</span>}
                   </span>
-                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span className="sz-count">{visibleSizeOptions.length} of {totalSizeCount} shown</span>
+                </div>
+                <div className="sz-bar">
+                  {/* Which sizes are listed: this category only (default), or
+                      the whole global list — where the scope chips live. */}
+                  <div className="sz-seg" role="group" aria-label="Which sizes to list">
+                    <button
+                      type="button"
+                      className={`sz-seg-btn${showAllSizes ? '' : ' is-on'}`}
+                      onClick={() => setShowAllSizes(false)}
+                      disabled={!productCatId}
+                      title={productCatId ? `Only sizes that apply to ${sizeCatName}` : 'Pick a product category above first'}
+                    >
+                      {sizeCatName || 'This category'}
+                    </button>
+                    <button
+                      type="button"
+                      className={`sz-seg-btn${showAllSizes ? ' is-on' : ''}`}
+                      onClick={() => setShowAllSizes(true)}
+                      title="Every size, whatever category it belongs to"
+                    >
+                      All categories
+                    </button>
+                  </div>
+                  <span className="sz-hint">
+                    {!productCatId ? 'Pick a product category to list only its sizes'
+                      : showAllSizes ? 'Tick ✗ beside a size to delete several at once'
+                        : `Only sizes for ${sizeCatName || 'this category'} are listed`}
+                  </span>
+                  <span className="sz-actions-bar">
                     <button type="button" className="a-btn a-btn--subtle a-btn--sm" onClick={() => {
-                      const all = sizeOptions.filter(o => o.is_enabled !== false).map(o => o.key)
+                      const all = visibleSizeOptions.map(o => o.key)
                       setBulkDelSizes(bulkDelSizes.length === all.length ? [] : all)
                     }}>
-                      {bulkDelSizes.length === sizeOptions.filter(o => o.is_enabled !== false).length && bulkDelSizes.length > 0 ? 'Clear selection' : 'Select all'}
+                      {bulkDelSizes.length === visibleSizeOptions.length && bulkDelSizes.length > 0 ? 'Clear selection' : 'Select all'}
                     </button>
                     {bulkDelSizes.length > 0 && (
                       <button type="button" className="a-btn a-btn--solid-danger a-btn--sm" onClick={() => bulkDeleteSizes(bulkDelSizes)}>
@@ -1606,25 +1824,31 @@ export default function AddProductPage() {
                 </div>
                 <div className="a-field">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div className="np-mc-grid np-mc-head">
-                      <div style={{ textAlign: 'center' }}>SEL</div>
-                      <div>SIZE</div>
-                      <div></div>
-                      <div>UPCHARGE ({priceCurrency})</div>
-                      <div></div>
+                    <div className="sz-grid sz-head">
+                      <div style={{ textAlign: 'center' }}>✓</div>
+                      <div>Size</div>
+                      <div>Upcharge ({priceCurrency})</div>
+                      <div style={{ textAlign: 'right' }}>Remove</div>
                     </div>
 
-                    {sizeOptions.filter((opt) => opt.is_enabled !== false).length === 0 && (
+                    {visibleSizeOptions.length === 0 && (
                       <div style={{ padding: 20, textAlign: 'center', color: 'var(--c-text-muted)', fontSize: 12, fontFamily: 'var(--font-dmsans)' }}>
-                        No size options yet. Add one below.
+                        {sizeOptions.filter((opt) => opt.is_enabled !== false).length === 0
+                          ? 'No size options yet. Add one below.'
+                          : showAllSizes
+                            ? 'No size options yet — add one below.'
+                            : `No sizes for this category yet — add one below (it saves for this category automatically), or switch to “All categories” to see the full list.`}
                       </div>
                     )}
 
-                    {sizeOptions.filter((opt) => opt.is_enabled !== false).map((opt) => {
+                    {visibleSizeOptions.map((opt) => {
                       const isSelected = selectedSizes.includes(opt.key);
                       const currentPriceMod = productSizePrices[opt.key] ?? '';
+                      const expanded = expandedSizeKey === opt.key;
+                      const editCats: string[] = expanded && (editedSizeCats as any)[opt.key] !== undefined ? (editedSizeCats as any)[opt.key] : (Array.isArray(opt.category_ids) ? opt.category_ids : []);
                       return (
-                        <div key={opt.key} className="np-mc-grid np-mc-row">
+                        <Fragment key={opt.key}>
+                        <div className="sz-grid sz-row">
                           <div className="np-mc-check">
                             <input
                               type="checkbox"
@@ -1643,8 +1867,10 @@ export default function AddProductPage() {
                               }}
                             />
                           </div>
-                          <div className="np-mc-cell">{opt.name}</div>
-                          <div className="np-mc-cell-muted">—</div>
+                          <div className="sz-name">
+                            <b>{opt.name}</b>
+                            {showAllSizes && <span className="sz-scope">{sizeAppliesLabel(opt)}</span>}
+                          </div>
                           <input
                             type="number"
                             step="0.01"
@@ -1657,7 +1883,7 @@ export default function AddProductPage() {
                               setProductSizePrices(prev => ({ ...prev, [opt.key]: e.target.value }))
                             }}
                           />
-                          <div className="np-mc-del" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div className="sz-cell-end">
                             <input
                               type="checkbox"
                               checked={bulkDelSizes.includes(opt.key)}
@@ -1675,14 +1901,95 @@ export default function AddProductPage() {
                             </button>
                           </div>
                         </div>
+                        {showAllSizes && (
+                          <div className="sz-scope-row">
+                            <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'var(--c-text-muted)' }}>
+                              Applies to: <strong style={{ color: 'var(--c-text)', fontWeight: 600 }}>{sizeAppliesLabel(opt)}</strong>
+                            </span>
+                            <button
+                              type="button"
+                              className="a-btn a-btn--subtle a-btn--sm"
+                              onClick={() => {
+                                if (expanded) { setExpandedSizeKey(null); }
+                                else {
+                                  setEditedSizeCats(prev => ({ ...prev, [opt.key]: Array.isArray(opt.category_ids) ? [...opt.category_ids] : [] }));
+                                  setExpandedSizeKey(opt.key);
+                                }
+                              }}
+                            >
+                              {expanded ? 'Close' : 'Edit categories'}
+                            </button>
+                          </div>
+                        )}
+                        {expanded && (
+                          <div className="sz-editor">
+                            <div style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--c-text-muted)', marginBottom: 8 }}>
+                              Show “{opt.name}” for — empty means all categories
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {categories.map((c: any) => {
+                                const on = editCats.includes(String(c.id));
+                                return (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => setEditedSizeCats(prev => {
+                                      const cur = prev[opt.key] ?? [];
+                                      return { ...prev, [opt.key]: on ? cur.filter(id => id !== String(c.id)) : [...cur, String(c.id)] };
+                                    })}
+                                    className={`a-btn a-btn--sm ${on ? 'a-btn--solid-danger' : 'a-btn--subtle'}`}
+                                    style={on ? undefined : { borderStyle: 'dashed' }}
+                                    title={c.name}
+                                  >
+                                    {on ? <Check size={12} /> : null}&nbsp;{c.name}
+                                  </button>
+                                );
+                              })}
+                              {categories.length === 0 && (
+                                <span style={{ fontSize: 12, color: 'var(--c-text-muted)' }}>No categories found.</span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                              <button type="button" className="a-btn a-btn--subtle a-btn--sm" onClick={() => saveSizeCats(opt, editCats)}>
+                                <Check size={12} />&nbsp;Save
+                              </button>
+                              <button type="button" className="a-btn a-btn--ghost a-btn--sm" onClick={() => setExpandedSizeKey(null)}>
+                                Cancel
+                              </button>
+                              <button type="button" className="a-btn a-btn--subtle a-btn--sm" onClick={() => setEditedSizeCats(prev => ({ ...prev, [opt.key]: [] }))}>
+                                All categories
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        </Fragment>
                       );
                     })}
                   </div>
                   <div className="a-row" style={{ gap: 12, marginTop: 16, alignItems: 'center', borderTop: '1px dashed var(--c-border)', paddingTop: 16 }}>
-                    <input className="a-input" style={{ flex: 2 }} value={newSizeName} onChange={e => setNewSizeName(e.target.value)} placeholder="New size option (e.g., 8.5)..." />
+                    <input className="a-input" style={{ flex: 2 }} value={newSizeName} onChange={e => setNewSizeName(e.target.value)} placeholder="New size option (e.g., 8.5 or 16 inch)..." />
                     <input type="number" step="0.01" className="a-input" style={{ flex: 1 }} value={newSizePrice} onChange={e => setNewSizePrice(e.target.value)} placeholder={`Price (${priceCurrency})`} />
                     <button type="button" className="a-btn a-btn--subtle" onClick={addNewSizeOption}>
                       <Plus size={14} />&nbsp;Add Size
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'var(--c-text-muted)' }}>
+                      New size applies to:
+                    </span>
+                    <button
+                      type="button"
+                      className={`a-btn a-btn--sm ${newSizeCats === null ? 'a-btn--solid-danger' : 'a-btn--subtle'}`}
+                      onClick={() => setNewSizeCats(null)}
+                    >
+                      {newSizeCats === null ? <Check size={12} /> : null}&nbsp;{productCatId ? 'This category only' : 'This category (pick one above)'}
+                    </button>
+                    <button
+                      type="button"
+                      className={`a-btn a-btn--sm ${newSizeCats !== null ? 'a-btn--solid-danger' : 'a-btn--subtle'}`}
+                      onClick={() => setNewSizeCats([])}
+                    >
+                      {newSizeCats !== null ? <Check size={12} /> : null}&nbsp;All categories
                     </button>
                   </div>
                 </div>

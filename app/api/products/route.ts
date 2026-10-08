@@ -430,6 +430,10 @@ export async function POST(request: NextRequest) {
       })(),
       // Optional marketing badge (Popular / Limited / Featured / custom). null = none.
       label: (body.label ?? '').toString().trim() || null,
+      // Estimated delivery window the admin pins per product (null → the
+      // storefront shows "2–3 weeks from today").
+      delivery_from: body.delivery_from || null,
+      delivery_to: body.delivery_to || null,
     }
     const finalImages = reqImage
       ? [reqImage, ...dedupImages.filter((u) => u !== reqImage)]
@@ -444,6 +448,7 @@ export async function POST(request: NextRequest) {
     let removedDiscountForRetry = false
     let removedLabelForRetry = false
     let removedModel3dForRetry = false
+    let removedDeliveryForRetry = false
     for (let attempt = 0; attempt < 8; attempt++) {
       const payload = {
         ...payloadBase,
@@ -467,6 +472,11 @@ export async function POST(request: NextRequest) {
       // Gracefully drop model_3d if this DB hasn't run the add_model_3d migration yet.
       if (removedModel3dForRetry) {
         delete (payload as any).model_3d
+      }
+      // Gracefully drop the delivery columns if migration 121 hasn't run yet.
+      if (removedDeliveryForRetry) {
+        delete (payload as any).delivery_from
+        delete (payload as any).delivery_to
       }
       const { data, error } = await supabaseServer.from('products').insert([payload]).select().single()
       if (!error) {
@@ -538,6 +548,10 @@ export async function POST(request: NextRequest) {
       }
       if (!removedLabelForRetry && (code === '42703' && /\blabel\b/i.test(msg))) {
         removedLabelForRetry = true
+        continue
+      }
+      if (!removedDeliveryForRetry && (code === '42703' && /delivery_(from|to)/i.test(msg))) {
+        removedDeliveryForRetry = true
         continue
       }
       if (!removedShapeForRetry && (code === '42703' && /diamond_shape/i.test(msg))) {

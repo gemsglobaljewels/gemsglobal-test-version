@@ -3,6 +3,7 @@ import { razorpay } from '@/lib/razorpayServer'
 import { stripe } from '@/lib/stripeServer'
 import { supabaseServer } from '@/lib/supabaseServer'
 import { sendOrderConfirmationEmail, sendAdminNewOrderEmail } from '@/lib/email'
+import { readShippingCfg, SHIPPING_DEFAULTS, SHIPPING_KEYS } from '@/lib/shippingConfig'
 
 export async function POST(request: NextRequest) {
   try {
@@ -112,8 +113,24 @@ export async function POST(request: NextRequest) {
     const taxUsd = subtotalUsd * 0.08
     const taxInr = Math.round(subtotalInr * 0.08)
 
-    const shippingUsd = deliveryMethod === 'express' ? 15 : 0
-    const shippingInr = deliveryMethod === 'express' ? Math.round(15 * usdToInr) : 0
+    // 1b. Delivery method rates — admin-editable in Site Settings → Shipping.
+    //     Defaults: standard 10–20 days @ $30, express 5–8 days @ $50.
+    let shipCfg = SHIPPING_DEFAULTS
+    try {
+      const { data: rows, error: shipErr } = await supabaseServer
+        .from('site_settings')
+        .select('key, value')
+        .in('key', Object.values(SHIPPING_KEYS))
+      if (!shipErr && rows && rows.length) {
+        const map: Record<string, string> = {}
+        rows.forEach(r => { map[r.key] = String(r.value) })
+        shipCfg = readShippingCfg(map)
+      }
+    } catch { /* fall through to defaults */ }
+
+    const shipMethodUsd = deliveryMethod === 'express' ? shipCfg.expPrice : shipCfg.stdPrice
+    const shippingUsd = shipMethodUsd
+    const shippingInr = Math.round(shipMethodUsd * usdToInr)
 
     const totalUsd = subtotalUsd + taxUsd + shippingUsd
     const totalInr = subtotalInr + taxInr + shippingInr

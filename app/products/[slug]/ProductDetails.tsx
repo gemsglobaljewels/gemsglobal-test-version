@@ -21,13 +21,16 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Price } from "@/components/Price";
 import { salePrice, normalizeDiscount, defaultVariantSelection, optionDisplayName } from "@/components/ProductCard";
+import { sizeAppliesToCategory, sizeLabelForCategory } from "@/lib/variantPricing";
 import { isVideoUrl, isEmbedVideoUrl, videoEmbedUrl, isDisplayableImageUrl } from "@/lib/video";
 import { RecentlyViewed } from "@/components/RecentlyViewed";
+import { estimatedDeliveryText } from "@/lib/delivery";
 
 /* ── Types ── */
 interface Product {
   id: string; name: string; description: string; price: number;
   category: string; categoryHierarchy?: string[]; slug: string;
+  category_id?: string;
   images: string[]; image?: string; rating: number; reviews: number;
   metal: string; style: string; stock_quantity: number;
   details: Record<string, any>; tags: string[];
@@ -37,7 +40,18 @@ interface Product {
   metal_options?: any[]; size_options?: any[]; carat_options?: any[]; custom_options?: any[];
   variant_prices?: Array<{ metal_key: string; carat_key: string; price_modifier: number }>;
   discount_percent?: number; label?: string | null;
+  /* Admin-pinned delivery window (migration 121); empty → 2–3 weeks from today. */
+  delivery_from?: string | null; delivery_to?: string | null;
 }
+/* Sizes that apply to a product: options tagged for its category
+   (untagged = universal). Keeps ring sizes off necklaces etc. */
+const sizesForProduct = (p: Product | null | undefined): any[] =>
+  ((p as any)?.size_options || []).filter((s: any) =>
+    sizeAppliesToCategory(s, (p as any)?.category_id));
+
+const defaultSizeName = (p: Product | null | undefined): string =>
+  sizesForProduct(p).find((s: any) => s.is_default)?.name || '';
+
 interface Review {
   id: string; product_id: string; user_id: string;
   rating: number; title: string; content: string; created_at: string;
@@ -379,6 +393,23 @@ const PDP_CSS = `
   background: linear-gradient(135deg,var(--a),var(--a2));
   border-radius: 100px; padding: 6px 13px; align-self: center;
   box-shadow: 0 10px 22px -12px rgba(140,116,86,.7);
+}
+/* Estimated delivery — the same window as the Delivery & Returns card,
+   surfaced right under the price where buyers actually look. */
+.pdp-eta {
+  display: flex; align-items: center; gap: 11px;
+  margin: -8px 0 22px; padding: 11px 14px;
+  border: 1px solid var(--bd); border-radius: var(--rad, 12px);
+  background: linear-gradient(135deg, rgba(140,116,86,.07), rgba(140,116,86,.02));
+}
+.pdp-eta svg { color: var(--a); flex: none; }
+.pdp-eta-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pdp-eta-txt strong {
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  color: #111; letter-spacing: .01em;
+}
+.pdp-eta-txt em {
+  font-style: normal; font-size: 11.5px; letter-spacing: .03em; color: var(--mu);
 }
 .pdp-label-badge {
   font-size: 10px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700;
@@ -1076,6 +1107,9 @@ export default function ProductDetails({ initialProduct, slug }: {
   // base price is never shown as the price for a variant product.
   const [userPickedVariant, setUserPickedVariant] = useState(false);
 
+  // Sizes offered on THIS product (category-filtered) — see sizesForProduct.
+  const visibleSizes = sizesForProduct(product);
+
   // Tabs: 'description' | 'specs' | 'reviews'
   const [tab, setTab] = useState<'description' | 'specs' | 'reviews'>('description');
 
@@ -1151,7 +1185,7 @@ export default function ProductDetails({ initialProduct, slug }: {
       // flagged) so the quoted price is always a real variant price.
       const dflt = defaultVariantSelection(initialProduct);
       setSelMetal(dflt.metal || initialProduct.metal || '');
-      setSelSize(initialProduct.size_options?.find((s: any) => s.is_default)?.name || '');
+      setSelSize(defaultSizeName(initialProduct));
       setSelCarat(dflt.carat || initialProduct.carat?.toString() || '');
       setUserPickedVariant(false);
     }
@@ -1174,7 +1208,7 @@ export default function ProductDetails({ initialProduct, slug }: {
         if (d.video_url) setVideoUrl(d.video_url);
         const dflt = defaultVariantSelection(d);
         setSelMetal(dflt.metal || d.metal || '');
-        setSelSize(d.size_options?.find((s: any) => s.is_default)?.name || '');
+        setSelSize(defaultSizeName(d as Product));
         setSelCarat(dflt.carat || d.carat?.toString() || '');
         setUserPickedVariant(false);
         addToRecentlyViewed(d);
@@ -1275,6 +1309,16 @@ export default function ProductDetails({ initialProduct, slug }: {
   );
 
   const allImgs = (Array.isArray(product.images) ? product.images : product.image ? [product.image] : []).filter(isDisplayable);
+  // Every video the admin attached. They all live in `images` (video_url is the
+  // legacy single-video column) — the strip below renders one playable tile per
+  // video, and clicking a tile loads it into the main stage.
+  const videoList = (() => {
+    const fromImages = (Array.isArray(product.images) ? product.images : []).filter(isVideoUrl);
+    const col = product.video_url || '';
+    const list = fromImages.slice();
+    if (col && !list.includes(col)) list.unshift(col);
+    return list.length > 0 ? list : (videoUrl ? [videoUrl] : []);
+  })();
   // ── Variant model (shared by the price block + the variant table) ──
   // A variant product is NEVER priced at the bare base: the effective
   // selection always resolves to a real row (first-variant default), so the
@@ -1371,6 +1415,15 @@ export default function ProductDetails({ initialProduct, slug }: {
   const totalSalePrice = Math.round(pdpSalePrice * Math.max(1, qty) * 100) / 100;
   const initial = (product.name || 'J')[0].toUpperCase();
 
+  // Delivery window is date-dependent and the server renders in UTC while the
+  // browser may be on IST — around midnight the two disagree on the day. So
+  // the window is computed after mount: SSR HTML and the first client render
+  // both omit it, then it appears. No hydration mismatch, no flash.
+  const [etaText, setEtaText] = useState('');
+  useEffect(() => {
+    setEtaText(estimatedDeliveryText(product));
+  }, [product?.id, product?.delivery_from, product?.delivery_to]);
+
   const rvArr = Array.isArray(reviews) ? reviews : [];
   const rvCounts = [0, 0, 0, 0, 0];
   rvArr.forEach(r => { rvCounts[Math.min(4, Math.max(0, Math.round(r.rating) - 1))]++; });
@@ -1428,12 +1481,25 @@ export default function ProductDetails({ initialProduct, slug }: {
                   <SafeImage src={img} alt={`${product.name} ${i + 1}`} fallback={initial} thumb />
                 </div>
               ))}
-              {videoUrl && (
-                <div className={`pdp-thumb ${selImg === -2 ? 'on' : ''}`} onClick={() => setSelImg(-2)} style={{ position: 'relative' }}>
-                  <div className="pdp-thumb-overlay"><Play size={16} fill="var(--a)" color="var(--a)" /></div>
-                  <SafeImage src={allImgs[0] || ''} alt="Video" fallback={initial} thumb style={{ opacity: 0.35 }} />
+              {videoList.map((v, vi) => (
+                <div
+                  key={`pdp-video-${vi}`}
+                  className={`pdp-thumb ${selImg === -2 && videoUrl === v ? 'on' : ''}`}
+                  onClick={() => { setVideoUrl(v); setSelImg(-2); }}
+                  title={`Play video ${vi + 1}${videoList.length > 1 ? ` of ${videoList.length}` : ''}`}
+                  style={{ position: 'relative' }}
+                >
+                  <div className="pdp-thumb-overlay">
+                    <Play size={16} fill="var(--a)" color="var(--a)" />
+                    {videoList.length > 1 && (
+                      <span style={{ position: 'absolute', bottom: 4, right: 6, fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: 'var(--a)' }}>
+                        {vi + 1}
+                      </span>
+                    )}
+                  </div>
+                  <SafeImage src={allImgs[0] || ''} alt={`Video ${vi + 1}`} fallback={initial} thumb style={{ opacity: 0.35 }} />
                 </div>
-              )}
+              ))}
               {diamondModel && (
                 <div className={`pdp-thumb ${selImg === -1 ? 'on' : ''}`} onClick={() => setSelImg(-1)} style={{ position: 'relative' }}>
                   <div className="pdp-thumb-overlay" style={{ fontSize: 10, fontWeight: 700, color: 'var(--a)' }}>3D</div>
@@ -1532,6 +1598,21 @@ export default function ProductDetails({ initialProduct, slug }: {
           ) : (
             <div className="pdp-price"><Price value={totalCurPrice} /></div>
           )}
+
+          {/* ── Estimated delivery (mirrors the Delivery & Returns card) ── */}
+          {etaText ? (
+          <div className="pdp-eta">
+            <Truck size={16} strokeWidth={1.75} />
+            <span className="pdp-eta-txt">
+              <strong>Delivery by {etaText}</strong>
+              <em>
+                {product?.delivery_from || product?.delivery_to
+                  ? 'Dispatch window set for this piece'
+                  : 'Made to order — usually 2–3 weeks from today'}
+              </em>
+            </span>
+          </div>
+          ) : null}
 
           <div className="pdp-divider" />
 
@@ -1664,12 +1745,13 @@ export default function ProductDetails({ initialProduct, slug }: {
             </div>
           )}
 
-          {/* Size options */}
-          {product.size_options && product.size_options.length > 0 && (
+          {/* Size options — only the sizes that apply to THIS product's
+              category (ring sizes for rings, inch lengths for necklaces…). */}
+          {visibleSizes.length > 0 && (
             <div style={{ marginBottom: 20 }}>
-              <div className="pdp-sel-lbl">Select Size (US)</div>
+              <div className="pdp-sel-lbl">{sizeLabelForCategory(product.category, product.categoryHierarchy)}</div>
               <div className="pdp-opts">
-                {product.size_options.map((s: any) => (
+                {visibleSizes.map((s: any) => (
                   <button key={s.name} className={`pdp-opt ${selSize === s.name ? 'on' : ''}`} onClick={() => setSelSize(selSize === s.name ? '' : s.name)}>
                     {s.name}
                     {Number(s.price_modifier) > 0 && <span style={{ fontSize: 11, opacity: 0.8 }}>+<Price value={s.price_modifier} /></span>}
@@ -1835,6 +1917,13 @@ export default function ProductDetails({ initialProduct, slug }: {
             <div className="pdp-spec-card">
               <div className="pdp-spec-card-title"><Package size={14} /> Delivery & Returns</div>
               {[
+                {
+                  icon: <Calendar size={13} />,
+                  title: etaText ? `Estimated delivery: ${etaText}` : 'Estimated delivery',
+                  sub: product?.delivery_from || product?.delivery_to
+                    ? 'Dispatch window set for this piece'
+                    : 'Made to order — typically 2–3 weeks from today',
+                },
                 { icon: <Clock size={13} />, title: 'Custom Made — 2–3 Weeks', sub: 'Handcrafted to order by our master artisans' },
                 { icon: <Truck size={13} />, title: 'Free Insured Shipping', sub: 'Worldwide delivery with full insurance coverage' },
                 { icon: <RotateCcw size={13} />, title: '30-Day Hassle-Free Returns', sub: 'Full refund if you\'re not completely satisfied' },

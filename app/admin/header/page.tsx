@@ -93,6 +93,7 @@ export default function AdminHeaderManager() {
   const [savingConfig, setSavingConfig] = useState(false)
   const [savingSection, setSavingSection] = useState<string | null>(null)
   const [addingSection, setAddingSection] = useState(false)
+  const [uploadingBannerId, setUploadingBannerId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
@@ -226,6 +227,38 @@ export default function AdminHeaderManager() {
       console.error('Upload error:', e)
       return null
     }
+  }
+
+  // Mega-menu banner actions — a proper button to change it (no more "click
+  // the picture and hope") and an explicit delete with confirmation.
+  function pickBannerImage(cat: Category) {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      setUploadingBannerId(cat.id)
+      try {
+        const url = await uploadImage(file)
+        if (url) {
+          updateCategory({ ...cat, header_image_url: url })
+          showToast(`Banner updated for ${cat.name}`)
+        } else {
+          showToast('Upload failed — try again')
+        }
+      } finally {
+        setUploadingBannerId(null)
+      }
+    }
+    input.click()
+  }
+
+  function removeBanner(cat: Category) {
+    if (!cat.header_image_url) return
+    if (!confirm(`Remove the mega menu banner for "${cat.name}"?`)) return
+    updateCategory({ ...cat, header_image_url: null })
+    showToast(`Banner removed from ${cat.name}`)
   }
 
   // Persist a section. Every section in state has a real DB id (addSection
@@ -768,40 +801,79 @@ export default function AdminHeaderManager() {
                             <p style={{ margin: '0 0 8px', fontSize: '12px', color: 'var(--c-text-muted)' }}>
                               Shows as a banner on the right side of this category's mega menu (with or without sections).
                             </p>
+
+                            {/* Preview — display only; the buttons below do the work */}
                             <div
-                              className="a-input"
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 minHeight: '120px',
-                                cursor: 'pointer'
-                              }}
-                              onClick={() => {
-                                const input = document.createElement('input')
-                                input.type = 'file'
-                                input.accept = 'image/*'
-                                input.onchange = async (e) => {
-                                  const file = (e.target as HTMLInputElement).files?.[0]
-                                  if (file) {
-                                    const url = await uploadImage(file)
-                                    if (url) {
-                                      updateCategory({ ...cat, header_image_url: url })
-                                    }
-                                  }
-                                }
-                                input.click()
+                                padding: '10px',
+                                background: 'var(--c-surface)',
+                                border: '1px dashed var(--c-border)',
+                                borderRadius: 'var(--radius)',
+                                overflow: 'hidden'
                               }}
                             >
                               {cat.header_image_url ? (
-                                <img src={cat.header_image_url} alt="Banner" style={{ maxHeight: '100px', borderRadius: '8px' }} />
+                                <img
+                                  src={cat.header_image_url}
+                                  alt={`${cat.name} banner`}
+                                  style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain', borderRadius: '8px' }}
+                                />
                               ) : (
-                                <div style={{ color: 'var(--c-text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                <div style={{ color: 'var(--c-text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                                   <ImageIcon size={24} />
-                                  <span>Upload banner image</span>
+                                  <span style={{ fontSize: '12px' }}>No banner for {cat.name}</span>
                                 </div>
                               )}
                             </div>
+
+                            {/* Proper actions: change (edit) + delete */}
+                            <div className="a-row" style={{ gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                className="a-btn a-btn--subtle a-btn--sm"
+                                onClick={() => pickBannerImage(cat)}
+                                disabled={uploadingBannerId === cat.id}
+                                title={cat.header_image_url ? 'Replace the current banner' : 'Upload a banner image'}
+                              >
+                                <Upload size={14} />
+                                {uploadingBannerId === cat.id
+                                  ? 'Uploading…'
+                                  : cat.header_image_url ? 'Change image' : 'Upload image'}
+                              </button>
+                              {cat.header_image_url && (
+                                <button
+                                  type="button"
+                                  className="a-btn a-btn--danger a-btn--sm"
+                                  onClick={() => removeBanner(cat)}
+                                  title="Delete this category's mega menu banner"
+                                >
+                                  <Trash2 size={14} /> Remove banner
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Optional: point at an existing image URL instead of uploading */}
+                            <input
+                              key={`${cat.id}:${cat.header_image_url || ''}`}
+                              className="a-input"
+                              style={{ marginTop: '8px' }}
+                              defaultValue={cat.header_image_url || ''}
+                              placeholder="…or paste an image URL (applies when you click away)"
+                              title="Direct image URL — Enter or click away to apply"
+                              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                              onBlur={(e) => {
+                                const v = e.target.value.trim()
+                                const current = cat.header_image_url || ''
+                                // Blank never deletes here — clearing goes through "Remove banner".
+                                if (!v || v === current) return
+                                updateCategory({ ...cat, header_image_url: v })
+                                showToast(`Banner updated for ${cat.name}`)
+                              }}
+                            />
                           </div>
 
                           {/* Child Categories */}

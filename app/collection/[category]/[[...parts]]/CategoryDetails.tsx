@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import HeaderMegaMenu from '@/components/HeaderMegaMenu'
 import { Footer } from '@/components/footer';
+import { optionAppliesToCategory } from '@/lib/categoryScope';
 import {
   ChevronDown, ChevronRight, Grid3x3, LayoutList, Search,
   X, RotateCcw, Check, ChevronLeft, SlidersHorizontal, Home,
@@ -65,6 +66,7 @@ function mapProduct(p: any, allCategories?: any[]) {
     // fall back to the bare base price (e.g. ₹0) when the raw lookup misses.
     metal_options: p.metal_options || [],
     size_options: p.size_options || [],
+    category_id: p.category_id || null,
     carat_options: p.carat_options || [],
     variant_prices: p.variant_prices || [],
     discount_percent: p.discount_percent,
@@ -1052,13 +1054,31 @@ function CategoryPageInner() {
   const [metal, setMetal] = useState(searchParams.get('metal') || 'All');
   const [style, setStyle] = useState(searchParams.get('style') || 'All');
   const [shape, setShape] = useState(searchParams.get('shape') || 'All');
-  const [styleOptions, setStyleOptions] = useState<{ key: string; name: string }[]>([]);
+  // Raw style rows kept whole; the filter list is the category-scoped view so
+  // a Necklaces page never offers ring-only styles.
+  const [styleRows, setStyleRows] = useState<any[]>([]);
   const [shapeOptions, setShapeOptions] = useState<{ key: string; name: string }[]>([]);
   const [minPrice, setMinPrice] = useState(searchParams.get('minPrice') || '');
   const [maxPrice, setMaxPrice] = useState(searchParams.get('maxPrice') || '');
   const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'newest');
   const [page, setPage] = useState(1);
   const itemsPerPage = 12;
+
+  // Active category UUID: the sub-category chip is a *name*, so resolve it
+  // through the category list; no active category (e.g. "All") keeps every
+  // style visible rather than blanking the filter.
+  const activeCatId = String(
+    selectedSubCat
+      ? (categories.find(c => c.name === selectedSubCat) || {}).id || currentCategory?.id || ''
+      : currentCategory?.id || ''
+  );
+  const styleOptions = useMemo(
+    () => styleRows
+      .filter(x => x.is_enabled !== false)
+      .filter(x => !activeCatId || optionAppliesToCategory(x, activeCatId))
+      .map(x => ({ key: x.key, name: x.name })),
+    [styleRows, activeCatId]
+  );
 
   const metals = ['All', '14K Yellow Gold', '18K Yellow Gold', '14K White Gold', '18K White Gold', 'Rose Gold', 'Platinum'];
   const sortOptions = [
@@ -1083,7 +1103,7 @@ function CategoryPageInner() {
       .catch(console.error);
     fetch('/api/styles')
       .then(r => r.json())
-      .then(d => setStyleOptions(Array.isArray(d) ? d.filter((x: any) => x.is_enabled !== false).map((x: any) => ({ key: x.key, name: x.name })) : []))
+      .then(d => setStyleRows(Array.isArray(d) ? d.filter((x: any) => x.is_enabled !== false) : []))
       .catch(() => { });
     fetch('/api/diamond-shapes')
       .then(r => r.json())

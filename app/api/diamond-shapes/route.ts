@@ -21,14 +21,30 @@ export async function GET() {
     // Rarely-changing lookup data — safe for a few minutes on the edge.
     const cache = { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } }
     try {
-        const { data, error } = await supabaseServer
+        let data: any = null
+        let error: any = null
+        ;({ data, error } = await supabaseServer
             .from('diamond_shapes')
-            .select('key, name, sub, image, model_3d, is_enabled')
-            .order('name', { ascending: true })
+            .select('key, name, sub, image, model_3d, is_enabled, category_ids')
+            .order('name', { ascending: true }))
+        if (error) {
+            // Pre-migration DB (no category_ids column) — retry without it.
+            const retry = await supabaseServer
+                .from('diamond_shapes')
+                .select('key, name, sub, image, model_3d, is_enabled')
+                .order('name', { ascending: true })
+            data = retry.data
+            error = retry.error as any
+        }
         if (error) {
             return NextResponse.json(DEFAULT_SHAPES, cache)
         }
-        const rows = Array.isArray(data) ? data : []
+        const rows = (Array.isArray(data) ? data : []).map((row) => ({
+            ...row,
+            // NULL/missing = every category (shape is a stone cut, not a
+            // category attribute — scoping is optional).
+            category_ids: Array.isArray((row as any).category_ids) ? (row as any).category_ids : [],
+        }))
         if (rows.length === 0) return NextResponse.json(DEFAULT_SHAPES, cache)
         return NextResponse.json(rows, cache)
     } catch {
@@ -39,20 +55,30 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
     try {
         const body = await request.json().catch(() => ({}))
-        const items: Array<{ key: string; name?: string; sub?: string; image?: string; model_3d?: string; is_enabled?: boolean }> =
+        const items: Array<{ key: string; name?: string; sub?: string; image?: string; model_3d?: string; is_enabled?: boolean; category_ids?: string[] }> =
             Array.isArray(body?.items) ? body.items : []
         if (items.length === 0) {
             return NextResponse.json({ error: 'items required' }, { status: 400 })
         }
-        const payload = items.map((it) => ({
-            key: it.key,
-            name: it.name ?? null,
-            sub: it.sub ?? null,
-            image: it.image ?? null,
-            model_3d: it.model_3d ?? null,
-            is_enabled: typeof it.is_enabled === 'boolean' ? it.is_enabled : null,
-        }))
-        const { data, error } = await supabaseServer.from('diamond_shapes').upsert(payload, { onConflict: 'key' }).select()
+        const buildPayload = (strip: boolean) => items.map((it) => {
+            const row: Record<string, any> = {
+                key: it.key,
+                name: it.name ?? null,
+                sub: it.sub ?? null,
+                image: it.image ?? null,
+                model_3d: it.model_3d ?? null,
+                is_enabled: typeof it.is_enabled === 'boolean' ? it.is_enabled : null,
+            }
+            if (!strip) row.category_ids = Array.isArray(it.category_ids) ? it.category_ids : []
+            return row
+        })
+        let { data, error } = await supabaseServer.from('diamond_shapes').upsert(buildPayload(false), { onConflict: 'key' }).select()
+        if (error && /category_ids|42703|column/i.test(String((error as any)?.message || ''))) {
+            // Pre-migration DB — retry without the new column.
+            const retry = await supabaseServer.from('diamond_shapes').upsert(buildPayload(true), { onConflict: 'key' }).select()
+            data = retry.data
+            error = retry.error as any
+        }
         if (error) {
             const merged = [
                 ...DEFAULT_SHAPES.filter(d => !items.find(i => i.key === d.key)),

@@ -49,7 +49,7 @@ const MAIN_LINKS = [
 ];
 
 const SUB_LINKS = [
-  { href: '/admin/styles', label: 'Rings by Style' },
+  { href: '/admin/styles', label: 'Styles' },
   { href: '/admin/diamond-shapes', label: 'Diamond Shapes' },
   { href: '/admin/metal-options', label: 'Metal Options' },
   { href: '/admin/size-options', label: 'Size Options' },

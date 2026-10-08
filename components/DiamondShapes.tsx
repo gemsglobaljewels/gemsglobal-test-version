@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useRef, useEffect, useCallback } from "react";
+import { groupByFamily, type CategoryRef } from "@/lib/categoryScope";
 
 interface ShapeItem {
   key: string;
@@ -11,6 +12,8 @@ interface ShapeItem {
   img?: string;
   is_enabled?: boolean;
   position?: number;
+  /** Category UUIDs this shape is limited to (empty = every category). */
+  category_ids?: string[];
   [key: string]: any;
 }
 
@@ -31,7 +34,7 @@ const SHAPE_ICONS: Record<string, React.ReactNode> = {
   round: (<ShapeGlyph><circle cx="50" cy="50" r="30" /><circle cx="50" cy="50" r="14" /><path d="M50 12v6M50 82v6M12 50h6M82 50h6" /></ShapeGlyph>),
   oval: (<ShapeGlyph><ellipse cx="50" cy="50" rx="21" ry="32" /><ellipse cx="50" cy="50" rx="11" ry="20" /></ShapeGlyph>),
   cushion: (<ShapeGlyph><rect x="24" y="24" width="52" height="52" rx="15" /><rect x="35" y="35" width="30" height="30" rx="8" /></ShapeGlyph>),
-  princess: (<ShapeGlyph><rect x="26" y="26" width="48" height="48" /><rect x="37" y="37" width="26" height="26" /><path d="M26 26l11 11M74 26l-11 11M26 74l11-11M74 74l-11-11" /></ShapeGlyph>),
+  princess: (<ShapeGlyph><rect x="26" y="26" width="48" height="48" /><rect x="37" y="37" width="26" height="26" /><path d="M26 26l11 11M74 26l-11 11M26 74l11-11" /></ShapeGlyph>),
   emerald: (<ShapeGlyph><path d="M38 22h24l16 16v24l-16 16H38l-16-16V38Z" /><path d="M44 32h12l8 8v20l-8 8H44l-8-8V40Z" /></ShapeGlyph>),
   asscher: (<ShapeGlyph><rect x="28" y="28" width="44" height="44" /><rect x="38" y="38" width="24" height="24" /><rect x="46" y="46" width="8" height="8" /></ShapeGlyph>),
   marquise: (<ShapeGlyph><path d="M50 14C67 33 67 67 50 86 33 67 33 33 50 14Z" /><path d="M50 26v48" /></ShapeGlyph>),
@@ -53,27 +56,13 @@ const DEFAULT_SHAPES: ShapeItem[] = [
   { key: "asscher", name: "Asscher", sub: "Vintage step-cut" },
 ];
 
-export default function DiamondShapes({
-  initialDiamondShapes,
-}: {
-  initialDiamondShapes: ShapeItem[];
-}) {
+/* One section: desktop row + its own mobile carousel / dots. */
+function ShapeBlock({ shapes, heading }: { shapes: ShapeItem[]; heading?: string }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const [current, setCurrent] = useState(0);
   const autoRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
-
-  const raw =
-    initialDiamondShapes?.length > 0
-      ? initialDiamondShapes.filter((s) => s.is_enabled !== false)
-      : DEFAULT_SHAPES;
-
-  const shapes = raw.map((s) => ({
-    ...s,
-    // Admin photo wins; otherwise the crisp inline glyph (never a dead hotlink).
-    image: s.image || s.img || "",
-  }));
 
   const total = shapes.length;
 
@@ -127,7 +116,178 @@ export default function DiamondShapes({
     }
   };
 
-  if (shapes.length === 0) return null;
+  if (total === 0) return null;
+
+  return (
+    <div className="ds-block">
+      {heading && <h3 className="ds-sec-title">{heading}</h3>}
+
+      {/* ── Desktop: all shapes in one row ── */}
+      <div className="ds-desktop-row">
+        {shapes.map((s, i) => (
+          <Link
+            key={s.key}
+            href={`/collection?shape=${s.key}`}
+            className="ds-item"
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+          >
+            {/* WHITE bg wrapper so mix-blend-mode:multiply removes the gray box */}
+            <div className="ds-img-outer">
+              <div className="ds-img-wrap">
+                {s.image ? (
+                  <img
+                    src={s.image}
+                    alt={s.name}
+                    className="ds-img"
+                    loading={i < 5 ? "eager" : "lazy"}
+                    decoding="async"
+                    width={180}
+                    height={180}
+                  />
+                ) : (
+                  SHAPE_ICONS[s.key] || <div className="ds-placeholder">◆</div>
+                )}
+              </div>
+            </div>
+            <div className="ds-labels">
+              <span className="ds-name">{s.name.toUpperCase()}</span>
+              {s.sub && <span className="ds-sub">{s.sub}</span>}
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* ── Mobile: slider ── */}
+      <div
+        className="ds-mobile-slider"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <button
+          className="ds-arrow ds-arrow-l"
+          onClick={handlePrev}
+          aria-label="Previous"
+        >
+          ‹
+        </button>
+
+        <div className="ds-slider-viewport">
+          {shapes.map((s, idx) => {
+            const diff = (((idx - current) % total) + total) % total;
+            const rel = diff > total / 2 ? diff - total : diff;
+            const isActive = rel === 0;
+            const isNext = rel === 1;
+            const isPrev = rel === -1;
+
+            return (
+              <Link
+                key={s.key}
+                href={`/collection?shape=${s.key}`}
+                className="ds-slide"
+                style={{
+                  transform: isActive
+                    ? "translateX(-50%) scale(1)"
+                    : isPrev
+                      ? "translateX(calc(-50% - 180px)) scale(0.62)"
+                      : isNext
+                        ? "translateX(calc(-50% + 180px)) scale(0.62)"
+                        : `translateX(calc(-50% + ${rel * 180}px)) scale(0.4)`,
+                  opacity: isActive ? 1 : isPrev || isNext ? 0.45 : 0,
+                  zIndex: isActive ? 3 : isPrev || isNext ? 2 : 0,
+                  pointerEvents: isActive ? "auto" : "none",
+                }}
+                tabIndex={isActive ? 0 : -1}
+              >
+                {/* WHITE bg so multiply removes gray */}
+                <div className="ds-slide-img-outer">
+                  <div className="ds-slide-img-wrap">
+                    {s.image ? (
+                      <img
+                        src={s.image}
+                        alt={s.name}
+                        className="ds-slide-img"
+                        loading="eager"
+                        decoding="async"
+                      />
+                    ) : (
+                      SHAPE_ICONS[s.key] || (
+                        <div
+                          className="ds-placeholder"
+                          style={{ fontSize: 64 }}
+                        >
+                          ◆
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+
+        <button
+          className="ds-arrow ds-arrow-r"
+          onClick={handleNext}
+          aria-label="Next"
+        >
+          ›
+        </button>
+      </div>
+
+      {/* Mobile label */}
+      <div className="ds-mobile-label">
+        <span className="ds-mobile-name">{shapes[current].name}</span>
+        {shapes[current].sub && (
+          <span className="ds-mobile-sub">{shapes[current].sub}</span>
+        )}
+      </div>
+
+      {/* Dots */}
+      <div className="ds-dots">
+        {shapes.map((_, i) => (
+          <button
+            key={i}
+            className={`ds-dot ${i === current ? "ds-dot--active" : ""}`}
+            onClick={() => {
+              goTo(i);
+              resetAuto();
+            }}
+            aria-label={`Shape ${i + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function DiamondShapes({
+  initialDiamondShapes,
+  categories,
+}: {
+  initialDiamondShapes: ShapeItem[];
+  /** Category rows used to title sections when a shape is category-scoped. */
+  categories?: CategoryRef[];
+}) {
+  const raw =
+    initialDiamondShapes?.length > 0
+      ? initialDiamondShapes.filter((s) => s.is_enabled !== false)
+      : DEFAULT_SHAPES;
+
+  const shapes = raw.map((s) => ({
+    ...s,
+    // Admin photo wins; otherwise the crisp inline glyph (never a dead hotlink).
+    image: s.image || s.img || "",
+  }));
+
+  // A shape is a stone cut, so by default every category shares one row and
+  // nothing looks different. If admin scopes shapes (Admin → Diamond Shapes)
+  // they split into sections — same grouping the Styles block uses.
+  const sections = groupByFamily(shapes, categories || []);
+  if (sections.length === 0) return null;
+  const multi = sections.length > 1;
 
   return (
     <>
@@ -135,6 +295,7 @@ export default function DiamondShapes({
       <section className="ds-root">
         <div className="ds-head">
           <p className="ds-eyebrow">Explore Shapes</p>
+          <span className="ds-rule" aria-hidden />
           <p className="ds-desc">
             Discover our extraordinary collection of diamonds categorized by
             shape.
@@ -143,176 +304,81 @@ export default function DiamondShapes({
           </p>
         </div>
 
-        {/* ── Desktop: all shapes in one row ── */}
-        <div className="ds-desktop-row">
-          {shapes.map((s, i) => (
-            <Link
-              key={s.key}
-              href={`/collection?shape=${s.key}`}
-              className="ds-item"
-              onMouseEnter={() => setHovered(i)}
-              onMouseLeave={() => setHovered(null)}
-            >
-              {/* WHITE bg wrapper so mix-blend-mode:multiply removes the gray box */}
-              <div className="ds-img-outer">
-                <div className="ds-img-wrap">
-                  {s.image ? (
-                    <img
-                      src={s.image}
-                      alt={s.name}
-                      className="ds-img"
-                      loading={i < 5 ? "eager" : "lazy"}
-                      decoding="async"
-                      width={180}
-                      height={180}
-                    />
-                  ) : (
-                    SHAPE_ICONS[s.key] || <div className="ds-placeholder">◆</div>
-                  )}
-                </div>
-              </div>
-              <div className="ds-labels">
-                <span className="ds-name">{s.name.toUpperCase()}</span>
-                {s.sub && <span className="ds-sub">{s.sub}</span>}
-              </div>
-            </Link>
-          ))}
-        </div>
-
-        {/* ── Mobile: slider ── */}
-        <div
-          className="ds-mobile-slider"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          <button
-            className="ds-arrow ds-arrow-l"
-            onClick={handlePrev}
-            aria-label="Previous"
-          >
-            ‹
-          </button>
-
-          <div className="ds-slider-viewport">
-            {shapes.map((s, idx) => {
-              const diff = (((idx - current) % total) + total) % total;
-              const rel = diff > total / 2 ? diff - total : diff;
-              const isActive = rel === 0;
-              const isNext = rel === 1;
-              const isPrev = rel === -1;
-
-              return (
-                <Link
-                  key={s.key}
-                  href={`/collection?shape=${s.key}`}
-                  className="ds-slide"
-                  style={{
-                    transform: isActive
-                      ? "translateX(-50%) scale(1)"
-                      : isPrev
-                        ? "translateX(calc(-50% - 180px)) scale(0.62)"
-                        : isNext
-                          ? "translateX(calc(-50% + 180px)) scale(0.62)"
-                          : `translateX(calc(-50% + ${rel * 180}px)) scale(0.4)`,
-                    opacity: isActive ? 1 : isPrev || isNext ? 0.45 : 0,
-                    zIndex: isActive ? 3 : isPrev || isNext ? 2 : 0,
-                    pointerEvents: isActive ? "auto" : "none",
-                  }}
-                  tabIndex={isActive ? 0 : -1}
-                >
-                  {/* WHITE bg so multiply removes gray */}
-                  <div className="ds-slide-img-outer">
-                    <div className="ds-slide-img-wrap">
-                      {s.image ? (
-                        <img
-                          src={s.image}
-                          alt={s.name}
-                          className="ds-slide-img"
-                          loading="eager"
-                          decoding="async"
-                        />
-                      ) : (
-                        SHAPE_ICONS[s.key] || (
-                          <div
-                            className="ds-placeholder"
-                            style={{ fontSize: 64 }}
-                          >
-                            ◆
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-
-          <button
-            className="ds-arrow ds-arrow-r"
-            onClick={handleNext}
-            aria-label="Next"
-          >
-            ›
-          </button>
-        </div>
-
-        {/* Mobile label */}
-        <div className="ds-mobile-label">
-          <span className="ds-mobile-name">{shapes[current].name}</span>
-          {shapes[current].sub && (
-            <span className="ds-mobile-sub">{shapes[current].sub}</span>
-          )}
-        </div>
-
-        {/* Dots */}
-        <div className="ds-dots">
-          {shapes.map((_, i) => (
-            <button
-              key={i}
-              className={`ds-dot ${i === current ? "ds-dot--active" : ""}`}
-              onClick={() => {
-                goTo(i);
-                resetAuto();
-              }}
-              aria-label={`Shape ${i + 1}`}
-            />
-          ))}
-        </div>
+        {sections.map((sec) => (
+          <ShapeBlock
+            key={sec.title}
+            shapes={sec.rows}
+            heading={sec.title === "Featured" && !multi
+              ? undefined
+              : sec.title === "Featured" ? "Featured Shapes" : sec.title}
+          />
+        ))}
       </section>
     </>
   );
 }
 
 const CSS = `
+/* No panel: the section sits straight on the page — same treatment as the
+   Styles widget above (background / border / radius / shadow all removed).
+   Spacing comes from the margins below, not from box padding. */
 .ds-root {
-  padding: 56px 0 48px;
+  width: min(1240px, calc(100% - clamp(24px, 5vw, 64px)));
+  margin: clamp(36px, 5vw, 64px) auto clamp(24px, 4vw, 48px);
   font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
-  width: 100%;
 }
 
 /* ── Header ── */
-.ds-head { text-align: center; margin-bottom: 48px; }
+.ds-head { text-align: center; margin-bottom: clamp(20px, 2.6vw, 34px); }
 .ds-eyebrow {
   display: block;
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: .55em;
-  text-transform: uppercase;
-  color: #1a2e4a;
-  margin-bottom: 18px;
+  margin: 0;
+  font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
+  font-size: clamp(21px, 2.4vw, 30px);
+  font-weight: 500;
+  font-style: italic;
+  letter-spacing: .04em;
+  color: #12233b;
+}
+.ds-rule {
+  display: block;
+  width: 74px;
+  height: 1px;
+  margin: 12px auto 16px;
+  background: linear-gradient(90deg, transparent, #C9A96E 30%, #C9A96E 70%, transparent);
 }
 .ds-desc {
   font-size: 14px;
   color: #3a4f6e;
   line-height: 1.9;
   font-weight: 300;
+  margin: 0;
 }
 
-/* ═══════════════════════════════════════
+/* ── Per-category section heading (only when shapes are scoped) ── */
+.ds-block + .ds-block { margin-top: 44px; }
+.ds-sec-title {
+  margin: 0 0 6px;
+  text-align: center;
+  font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
+  font-size: clamp(17px, 1.8vw, 21px);
+  font-weight: 500;
+  font-style: italic;
+  letter-spacing: .04em;
+  color: #12233b;
+}
+.ds-sec-title::after {
+  content: '';
+  display: block;
+  width: 54px;
+  height: 1px;
+  margin: 10px auto 22px;
+  background: linear-gradient(90deg, transparent, #C9A96E 30%, #C9A96E 70%, transparent);
+}
+
+/* ═══════════════════════════════
    DESKTOP ROW
-═══════════════════════════════════════ */
+═══════════════════════════════ */
 .ds-desktop-row {
   display: flex;
   justify-content: center;
@@ -399,9 +465,9 @@ const CSS = `
 }
 .ds-item:hover .ds-sub { opacity: 1; }
 
-/* ═══════════════════════════════════════
+/* ═══════════════════════════════
    MOBILE SLIDER
-═══════════════════════════════════════ */
+═══════════════════════════════ */
 .ds-mobile-slider {
   display: none;
   align-items: center;
@@ -526,16 +592,22 @@ const CSS = `
 }
 .ds-dot--active { width: 22px; border-radius: 4px; background: #1a2e4a; }
 
-/* ═══════════════════════════════════════
+/* ═══════════════════════════════
    RESPONSIVE
-═══════════════════════════════════════ */
+═══════════════════════════════ */
 @media (max-width: 768px) {
   .ds-desktop-row { display: none; }
   .ds-mobile-slider { display: flex; }
   .ds-mobile-label { display: flex; }
   .ds-dots { display: flex; }
-  .ds-root { padding: 48px 0 40px; }
-  .ds-eyebrow { font-size: 9px; letter-spacing: .42em; }
-  .ds-desc { font-size: 13px; padding: 0 24px; }
+  .ds-root {
+    width: calc(100% - 24px);
+    margin: 28px auto 24px;
+  }
+  .ds-eyebrow { font-size: 20px; }
+  .ds-rule { margin: 10px auto 14px; }
+  .ds-desc { font-size: 13px; padding: 0; }
+  .ds-sec-title { font-size: 17px; margin-bottom: 0; }
+  .ds-block + .ds-block { margin-top: 30px; }
 }
 `;

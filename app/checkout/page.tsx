@@ -10,10 +10,12 @@ import { Footer } from '@/components/footer'
 import {
   ChevronDown, AlertCircle, Lock, User, MapPin, CreditCard,
   Loader2, Truck, Diamond, ShieldCheck, Smartphone, ArrowLeft,
-  ArrowRight, Mail, Check, Gem, RotateCcw, Pencil,
+  ArrowRight, Mail, Check, Gem, RotateCcw, Pencil, CalendarDays,
 } from 'lucide-react'
 import { Price } from '@/components/Price'
-import { getCart, getCartTotals, clearCart, getUser, getCurrency, convertToDisplayPrice, getSettings, SiteSettings, Currency } from '@/lib/authStore'
+import { getCart, getCartTotals, clearCart, getUser, getCurrency, convertToDisplayPrice, getSettings, fetchAndSyncSettings, SiteSettings, Currency } from '@/lib/authStore'
+import { readShippingCfg, ShippingCfg, SHIPPING_DEFAULTS, daysLabel } from '@/lib/shippingConfig'
+import { windowFromDays, formatDeliveryWindow } from '@/lib/delivery'
 
 declare global { interface Window { Razorpay: any } }
 
@@ -251,6 +253,9 @@ const CSS = `
 .ck-toggle-btn.sel .ck-toggle-icon{color:var(--a);}
 .ck-toggle-title{font-family:var(--serif);font-size:19px;font-weight:600;color:var(--ink);}
 .ck-toggle-sub{font-size:10.5px;font-weight:300;letter-spacing:.05em;color:var(--mu);margin-top:3px;}
+.ck-eta{display:flex;align-items:center;gap:8px;margin-top:12px;padding:9px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--cr);font-size:11.5px;letter-spacing:.03em;color:var(--mu);}
+.ck-eta svg{color:var(--a);flex:none;}
+.ck-eta strong{color:var(--ink);font-weight:600;}
 .ck-toggle-badge{font-size:10.5px;color:var(--a);font-weight:700;letter-spacing:.12em;text-transform:uppercase;}
 
 /* ══ PAYMENT NOTE ═══════════════════════════════════════════ */
@@ -434,6 +439,10 @@ export default function CheckoutPage() {
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(() => getSettings())
   const [razorpayReady, setRazorpayReady] = useState(false)
 
+  // Delivery methods (days + price) live in Site Settings → Shipping. Defaults
+  // apply until settings load so totals are never wrong for a frame.
+  const [shipCfg, setShipCfg] = useState<ShippingCfg>(SHIPPING_DEFAULTS)
+
   const [formData, setFormData] = useState({
     email: '', firstName: '', lastName: '', countryCode: '+91', phone: '',
     shippingAddress: '', shippingCity: '', shippingState: '', shippingZip: '',
@@ -443,6 +452,16 @@ export default function CheckoutPage() {
     deliveryMethod: 'home_delivery',
     paymentMethod: 'online',
   })
+
+  useEffect(() => {
+    let alive = true
+    // Fresh read (5-min deduped cache in authStore) + live update if another
+    // tab/component syncs settings while checkout is open.
+    fetchAndSyncSettings().then(s => { if (alive && s) setShipCfg(readShippingCfg(s as any)) })
+    const onUpd = (e: any) => { const s = e.detail?.settings; if (s) setShipCfg(readShippingCfg(s)) }
+    window.addEventListener('settings-updated', onUpd)
+    return () => { alive = false; window.removeEventListener('settings-updated', onUpd) }
+  }, [])
 
   useEffect(() => {
     setMounted(true)
@@ -508,8 +527,9 @@ export default function CheckoutPage() {
         const tax = Math.round(sub * 0.08)
         setInrTax(tax)
 
-        const ship = formData.deliveryMethod === 'express' ? Math.round(15 * 93.1) : 0
-        setInrShipping(ship)
+        const shipUsd = formData.deliveryMethod === 'express' ? shipCfg.expPrice : shipCfg.stdPrice
+        const ship = shipUsd > 0 ? await convertToDisplayPrice(shipUsd, false) : 0
+        setInrShipping(Math.round(ship))
 
         setInrTotal(sub + tax + ship)
       } else {
@@ -520,7 +540,7 @@ export default function CheckoutPage() {
       }
     }
     sync()
-  }, [formData.deliveryMethod, cart, currency]) // Added currency dependency to sync totals when it changes
+  }, [formData.deliveryMethod, cart, currency, shipCfg]) // Added currency dependency to sync totals when it changes
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target as HTMLInputElement
@@ -536,7 +556,19 @@ export default function CheckoutPage() {
   }
 
   const express = formData.deliveryMethod === 'express'
-  const grandTotal = totals.total + (express ? 15 : 0)
+  const shipUsd = express ? shipCfg.expPrice : shipCfg.stdPrice
+  const grandTotal = totals.total + shipUsd
+
+  // "Arrives 1-7 to 7-7" — today + the selected method's day range. Computed
+  // after mount: SSR renders in UTC while the browser may be on another
+  // timezone, and around midnight the two disagree on the day.
+  const [etaText, setEtaText] = useState('')
+  useEffect(() => {
+    setEtaText(formatDeliveryWindow(windowFromDays(
+      express ? shipCfg.expMin : shipCfg.stdMin,
+      express ? shipCfg.expMax : shipCfg.stdMax,
+    )))
+  }, [express, shipCfg])
 
   const validateStep = (step: Step) => {
     if (step === 'contact') {
@@ -729,7 +761,7 @@ export default function CheckoutPage() {
   const displayTotal = currency === 'INR' ? inrTotal : grandTotal
   const displaySubtotal = currency === 'INR' ? inrSubtotal : totals.subtotal
   const displayTax = currency === 'INR' ? inrTax : totals.tax
-  const displayShipping = currency === 'INR' ? inrShipping : (express ? 15 : 0)
+  const displayShipping = currency === 'INR' ? inrShipping : shipUsd
   const itemCount = cart.reduce((n, it) => n + (it.quantity ?? 1), 0)
   const selectedCountry = COUNTRY_CODES.find(c => c.code === formData.countryCode)
   const stepIndex = STEPS.findIndex(s => s.key === activeStep)
@@ -953,9 +985,11 @@ export default function CheckoutPage() {
                             </div>
                             <div>
                               <div className="ck-toggle-title">Standard</div>
-                              <div className="ck-toggle-sub">3–7 Business Days</div>
+                              <div className="ck-toggle-sub">{daysLabel(shipCfg.stdMin, shipCfg.stdMax)}</div>
                             </div>
-                            <div className="ck-toggle-badge">Complimentary</div>
+                            <div className="ck-toggle-badge">
+                              {shipCfg.stdPrice > 0 ? <Price value={shipCfg.stdPrice} /> : 'Complimentary'}
+                            </div>
                           </button>
                           <button type="button" className={`ck-toggle-btn ${formData.deliveryMethod === 'express' ? 'sel' : ''}`} onClick={() => setFormData(p => ({ ...p, deliveryMethod: 'express' }))}>
                             <div className="ck-toggle-top">
@@ -964,11 +998,18 @@ export default function CheckoutPage() {
                             </div>
                             <div>
                               <div className="ck-toggle-title">Express</div>
-                              <div className="ck-toggle-sub">1–2 Business Days</div>
+                              <div className="ck-toggle-sub">{daysLabel(shipCfg.expMin, shipCfg.expMax)}</div>
                             </div>
-                            <div className="ck-toggle-badge"><Price value={15} /></div>
+                            <div className="ck-toggle-badge"><Price value={shipCfg.expPrice} /></div>
                           </button>
                         </div>
+
+                        {etaText ? (
+                        <div className="ck-eta">
+                          <CalendarDays size={14} />
+                          <span>Estimated arrival: <strong>{etaText}</strong> · ships with {express ? 'express' : 'standard'} delivery</span>
+                        </div>
+                        ) : null}
 
                         <div className="ck-nav-btns">
                           <button className="ck-btn-prev" onClick={() => setStep('contact')}>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
 import { refreshStorefront } from '@/lib/revalidate'
+import { loadGlobalSizes, buildProductSizes } from '@/lib/productSizes'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,6 +105,9 @@ export async function GET(
       }))
     } catch { variantSupported = false; variantPrices = [] }
 
+    // Category-aware sizes — identical resolution to the SSR PDP render.
+    const globalSizes = await loadGlobalSizes();
+
     const stockQty =
       typeof p.stock_quantity === 'number'
         ? p.stock_quantity
@@ -147,12 +151,7 @@ export async function GET(
         price_modifier: mo.price_modifier,
         is_default: mo.is_default
       })),
-      size_options: sizeOptions.map((so: any) => ({
-        key: so.key,
-        name: so.size_name,
-        price_modifier: so.price_modifier,
-        is_default: so.is_default
-      })),
+      size_options: buildProductSizes(sizeOptions, p.category_id, globalSizes),
       carat_options: caratOptions.map((co: any) => ({
         key: co.key,
         name: co.carat_name,
@@ -270,6 +269,14 @@ export async function PUT(
     if (body.video_url !== undefined) {
       updates.video_url = body.video_url || null
     }
+    // Estimated delivery window (per product). "" / null clears it → the
+    // storefront falls back to "2–3 weeks from today".
+    if (body.delivery_from !== undefined) {
+      updates.delivery_from = body.delivery_from || null
+    }
+    if (body.delivery_to !== undefined) {
+      updates.delivery_to = body.delivery_to || null
+    }
     if (body.model_3d !== undefined) {
       updates.model_3d = body.model_3d || null
     }
@@ -342,6 +349,7 @@ export async function PUT(
     let removedDiscountForRetry = false
     let removedLabelForRetry = false
     let removedModel3dForRetry = false
+    let removedDeliveryForRetry = false
     for (let attempt = 0; attempt < 8; attempt++) {
       const { data, error } = await supabaseServer
         .from('products')
@@ -425,6 +433,13 @@ export async function PUT(
       if (!removedShapeForRetry && (code === '42703' && /diamond_shape/i.test(msg))) {
         delete (updates as any).diamond_shape
         removedShapeForRetry = true
+        continue
+      }
+      // Gracefully drop the delivery columns if migration 121 hasn't run yet.
+      if (!removedDeliveryForRetry && (code === '42703' && /delivery_(from|to)/i.test(msg))) {
+        delete (updates as any).delivery_from
+        delete (updates as any).delivery_to
+        removedDeliveryForRetry = true
         continue
       }
       // Must precede the catch-all sku check (which also matches bare 42703) so a
