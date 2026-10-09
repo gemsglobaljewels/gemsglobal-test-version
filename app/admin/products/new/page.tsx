@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import RichTextEditor from "@/components/RichTextEditor";
 import { resolveAdminFxRate } from "@/lib/adminRate";
 import { extractDriveId, isDriveUrl } from "@/lib/video";
-import { sizeAppliesToCategory } from "@/lib/variantPricing";
+import { sizeAppliesToCategory, payloadStartingRetail } from "@/lib/variantPricing";
 import { optionAppliesToCategory, defaultScopeFor } from "@/lib/categoryScope";
 import { estimatedDeliveryText } from "@/lib/delivery";
 
@@ -344,8 +344,9 @@ export default function AddProductPage() {
 
   const addCustomOptionItem = (secId: string) => {
     const name = (newItemNames[secId] || '').trim(); if (!name) return
+    // Held in DISPLAY currency (converted to USD only at save) — same model
+    // as the metal/size/carat upcharge inputs.
     const rawPrice = parseFloat(newItemPrices[secId] || '0') || 0
-    const priceMod = priceCurrency === 'USD' ? rawPrice : Math.round((rawPrice / fxRate) * 100) / 100
     const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
     setCustomSections(prev => prev.map(sec => {
@@ -354,7 +355,7 @@ export default function AddProductPage() {
       if (exists) return sec
       return {
         ...sec,
-        items: [...sec.items, { key, name, price_modifier: priceMod, is_enabled: true }]
+        items: [...sec.items, { key, name, price_modifier: rawPrice, is_enabled: true }]
       }
     }))
     setNewItemNames(prev => ({ ...prev, [secId]: '' }))
@@ -372,13 +373,13 @@ export default function AddProductPage() {
   }
 
   const updateCustomOptionPrice = (secId: string, itemKey: string, priceStr: string) => {
+    // Display currency in state; converted to USD at save.
     const rawPrice = parseFloat(priceStr) || 0
-    const priceMod = priceCurrency === 'USD' ? rawPrice : Math.round((rawPrice / fxRate) * 100) / 100
     setCustomSections(prev => prev.map(sec => {
       if (sec.id !== secId) return sec
       return {
         ...sec,
-        items: sec.items.map(item => item.key === itemKey ? { ...item, price_modifier: priceMod } : item)
+        items: sec.items.map(item => item.key === itemKey ? { ...item, price_modifier: rawPrice } : item)
       }
     }))
   }
@@ -795,6 +796,14 @@ export default function AddProductPage() {
       setProductCaratPrices(convMap)
       setProductSizePrices(convMap)
       setVariantOverrides(convMap)
+      // Custom-section items are display-currency in state too.
+      setCustomSections(prev => prev.map(sec => ({
+        ...sec,
+        items: sec.items.map(it => {
+          const n = parseFloat(String(it.price_modifier))
+          return { ...it, price_modifier: !isFinite(n) ? it.price_modifier : Math.round(n * f * 100) / 100 }
+        })
+      })))
       setNewMetalPrice(v => conv(v))
       setNewSizePrice(v => conv(v))
       setNewCaratPrice(v => conv(v))
@@ -882,6 +891,34 @@ export default function AddProductPage() {
       })
       const touchedVariants = Object.keys(variantOverrides).length > 0
 
+      const toOptPayload = (list: any[], sel: string[], prices: Record<string, string>) =>
+        list
+          .filter(o => o.is_enabled !== false && sel.includes(o.key))
+          .map(o => {
+            const rawMod = parseFloat(prices[o.key] || '0')
+            const modUSD = priceCurrency === 'USD' ? rawMod : Math.round((rawMod / fxRate) * 100) / 100
+            return {
+              key: o.key,
+              name: o.name,
+              price_modifier: isNaN(modUSD) ? 0 : modUSD
+            }
+          })
+      const metalOut = toOptPayload(metalOptions, finalMetals, productMetalPrices)
+      const sizeOut = toOptPayload(sizeOptions, selectedSizes, productSizePrices)
+      const caratOut = toOptPayload(caratOptions, finalCarats, productCaratPrices)
+
+      // ── Zero-price guard ── never create a product the shopper sees at 00.
+      if (!(payloadStartingRetail(priceUSD, metalOut, caratOut, variantRows) > 0)) {
+        const onlySingle = (finalMetals.length > 0) !== (finalCarats.length > 0)
+        setError(onlySingle
+          ? 'Set an upcharge on each material / diamond-weight row below, or set a retail price — otherwise this product would list at 00.'
+          : (finalMetals.length > 0 || finalCarats.length > 0)
+            ? 'Every variant totals 0 — set a per-row rate in the Material & Diamond Weight table, or set a retail price.'
+            : 'Set a retail price — otherwise this product would list at 00 and stay hidden.');
+        setLoading(false);
+        return;
+      }
+
       const payload = {
         ...formData,
         category: formData.category,
@@ -894,42 +931,16 @@ export default function AddProductPage() {
         model_3d: model3d,
         image: mainImage || images[0] || null,
         images: mainImage ? [mainImage, ...images.filter(u => u !== mainImage)] : images,
-        metal_options: metalOptions
-          .filter(o => o.is_enabled !== false && finalMetals.includes(o.key))
-          .map(o => {
-            const rawMod = parseFloat(productMetalPrices[o.key] || '0')
-            const modUSD = priceCurrency === 'USD' ? rawMod : Math.round((rawMod / fxRate) * 100) / 100
-            return {
-              key: o.key,
-              name: o.name,
-              price_modifier: isNaN(modUSD) ? 0 : modUSD
-            }
-          }),
-        size_options: sizeOptions
-          .filter(o => o.is_enabled !== false && selectedSizes.includes(o.key))
-          .map(o => {
-            const rawMod = parseFloat(productSizePrices[o.key] || '0')
-            const modUSD = priceCurrency === 'USD' ? rawMod : Math.round((rawMod / fxRate) * 100) / 100
-            return {
-              key: o.key,
-              name: o.name,
-              price_modifier: isNaN(modUSD) ? 0 : modUSD
-            }
-          }),
-        carat_options: caratOptions
-          .filter(o => o.is_enabled !== false && finalCarats.includes(o.key))
-          .map(o => {
-            const rawMod = parseFloat(productCaratPrices[o.key] || '0')
-            const modUSD = priceCurrency === 'USD' ? rawMod : Math.round((rawMod / fxRate) * 100) / 100
-            return {
-              key: o.key,
-              name: o.name,
-              price_modifier: isNaN(modUSD) ? 0 : modUSD
-            }
-          }),
+        metal_options: metalOut,
+        size_options: sizeOut,
+        carat_options: caratOut,
+        // Custom items are held in DISPLAY currency in state — convert to USD.
         custom_options: customSections.map(sec => ({
           title: sec.title,
-          items: sec.items.filter(i => i.is_enabled !== false)
+          items: sec.items.filter(i => i.is_enabled !== false).map(i => ({
+            ...i,
+            price_modifier: toUSD(String(i.price_modifier ?? '0')),
+          }))
         })),
         variant_prices: variantRows
       };
@@ -1036,6 +1047,37 @@ export default function AddProductPage() {
     const raw = parseFloat(formData.price)
     if (!isFinite(raw)) return '0.00'
     return priceCurrency === 'USD' ? raw.toFixed(2) : (Math.round((raw / fxRate) * 100) / 100).toFixed(2)
+  })()
+
+  // Shopper-facing "Starting at" (USD) for the current form state — variant
+  // products store base 0, so a base-only preview would wrongly show $0.00.
+  const newStartingUSD = (() => {
+    const raw = parseFloat(formData.price)
+    const base = !isFinite(raw) ? 0 : (priceCurrency === 'USD' ? raw : Math.round((raw / fxRate) * 100) / 100)
+    const cToUSD = (disp: string) => {
+      const n = parseFloat(disp) || 0
+      return priceCurrency === 'USD' ? n : Math.round((n / fxRate) * 100) / 100
+    }
+    const dispOf = (store: Record<string, string>, key: string, glob: any) =>
+      store[key] ?? String((priceCurrency === 'USD' ? glob?.price_modifier : (glob?.price_modifier || 0) * fxRate) || 0)
+    const ticked = Object.keys(comboSel).filter(k => comboSel[k] && !hiddenCombos[k])
+    const rows = ticked.map(vkey => {
+      const [mk, ck] = vkey.split('__')
+      if (variantOverrides[vkey] !== undefined) return { price_modifier: cToUSD(variantOverrides[vkey]) }
+      const m = metalOptions.find(o => o.key === mk)
+      const c = caratOptions.find(o => o.key === ck)
+      if (!m || !c) return null
+      return { price_modifier: Math.round((cToUSD(dispOf(productMetalPrices, mk, m)) + cToUSD(dispOf(productCaratPrices, ck, c))) * 100) / 100 }
+    }).filter(Boolean) as Array<{ price_modifier: number }>
+    const metals = selectedMetals.map(k => {
+      const g = metalOptions.find(o => o.key === k)
+      return { price_modifier: g ? cToUSD(dispOf(productMetalPrices, k, g)) : 0 }
+    })
+    const carats = selectedCarats.map(k => {
+      const g = caratOptions.find(o => o.key === k)
+      return { price_modifier: g ? cToUSD(dispOf(productCaratPrices, k, g)) : 0 }
+    })
+    return payloadStartingRetail(base, metals, carats, rows)
   })()
 
   return (
@@ -1282,7 +1324,11 @@ export default function AddProductPage() {
                   <div className="a-field">
                     <label className="a-label">Retail Price ({priceCurrency}) {(selectedMetals.length === 0 && selectedCarats.length === 0) && <span className="a-req">*</span>}</label>
                     <input className="a-input" type="number" name="price" value={formData.price} onChange={handleChange} placeholder="0.00" step="0.01" />
-                    <p className="a-hint">Approx. ${pricePreviewUSD} USD</p>
+                    <p className="a-hint">Approx. ${pricePreviewUSD} USD
+                      {(selectedMetals.length > 0 || selectedCarats.length > 0) && (
+                        <span> · Shopper sees <span style={{ color: 'var(--c-accent)', fontWeight: 600 }}>starting at ${newStartingUSD.toFixed(2)}</span></span>
+                      )}
+                    </p>
                     {(selectedMetals.length > 0 || selectedCarats.length > 0) && (
                       <p className="a-hint" style={{ marginTop: 4 }}>Optional — variants below carry their own prices; empty is stored as 0 base.</p>
                     )}
@@ -1364,7 +1410,10 @@ export default function AddProductPage() {
                     <span className="a-hint" style={{ margin: 0 }}>Any value 0–95%</span>
                   </div>
                   {discountPercent > 0 && (() => {
-                    const orig = parseFloat(pricePreviewUSD) || 0
+                    // Sale runs off the shopper-facing starting price (base +
+                    // first variant), not the bare base — variant products
+                    // store base 0, so a base-only preview always showed $0.00.
+                    const orig = newStartingUSD
                     const sale = Math.round(orig * (1 - discountPercent / 100) * 100) / 100
                     const inr = (usd: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Math.round(usd * fxRate))
                     return (
@@ -1373,7 +1422,7 @@ export default function AddProductPage() {
                         <span>({inr(sale)})</span>{' '}
                         <span style={{ textDecoration: 'line-through' }}>${orig.toFixed(2)}</span>{' '}
                         <span>({inr(orig)})</span>{' '}
-                        · {discountPercent}% off (USD, before metal/size upcharges)
+                        · {discountPercent}% off (USD, on the starting variant incl. upcharges)
                       </p>
                     )
                   })()}
@@ -1689,6 +1738,119 @@ export default function AddProductPage() {
                       );
                     })()}
                   </div>
+
+                  {/* ── Single-sided variants ─────────────────────────────
+                      With only materials (or only diamond weights) there are no
+                      metal×carat combinations, so the grid above is empty. These
+                      flat rows expose each option's upcharge (base + upcharge =
+                      shopper price) — without them such products save at 00. */}
+                  {(() => {
+                    const metList = metalOptions.filter(o => o.is_enabled !== false);
+                    const carList = caratOptions.filter(o => o.is_enabled !== false);
+                    if (metList.length > 0 && carList.length === 0) {
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+                          <div className="np-mc-grid np-mc-head" style={{ gridTemplateColumns: '0.5fr 2.5fr 1.6fr' }}>
+                            <div style={{ textAlign: 'center' }}>SEL</div>
+                            <div>MATERIAL</div>
+                            <div>UPCHARGE ({priceCurrency})</div>
+                          </div>
+                          {metList.map((m: any) => {
+                            const on = selectedMetals.includes(m.key);
+                            const ph = ((priceCurrency === 'USD' ? m.price_modifier : (m.price_modifier || 0) * fxRate) || 0).toFixed(2);
+                            return (
+                              <div key={m.key} className="np-mc-grid np-mc-row" style={{ gridTemplateColumns: '0.5fr 2.5fr 1.6fr' }}>
+                                <div className="np-mc-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={on}
+                                    style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--c-accent)' }}
+                                    title="Offer this material for this product"
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedMetals([...selectedMetals, m.key])
+                                        if (!productMetalPrices[m.key]) {
+                                          const g = priceCurrency === 'USD' ? m.price_modifier : (m.price_modifier || 0) * fxRate;
+                                          setProductMetalPrices(pm => ({ ...pm, [m.key]: String(g || 0) }))
+                                        }
+                                      } else {
+                                        setSelectedMetals(selectedMetals.filter(k => k !== m.key))
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <div className="np-mc-cell">{m.name}</div>
+                                <input
+                                  type="number" step="0.01"
+                                  className="a-input"
+                                  style={{ height: 36, width: '100%' }}
+                                  title="Upcharge over base price when a customer picks this material"
+                                  placeholder={ph}
+                                  value={productMetalPrices[m.key] ?? ''}
+                                  onChange={(e) => setProductMetalPrices(prev => ({ ...prev, [m.key]: e.target.value }))}
+                                />
+                              </div>
+                            );
+                          })}
+                          <div style={{ padding: '8px 4px', fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'var(--c-text-muted)' }}>
+                            {selectedMetals.length} of {metList.length} materials offered. Shopper price = base + upcharge.
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (carList.length > 0 && metList.length === 0) {
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+                          <div className="np-mc-grid np-mc-head" style={{ gridTemplateColumns: '0.5fr 2.5fr 1.6fr' }}>
+                            <div style={{ textAlign: 'center' }}>SEL</div>
+                            <div>DIAMOND WEIGHT</div>
+                            <div>UPCHARGE ({priceCurrency})</div>
+                          </div>
+                          {carList.map((c: any) => {
+                            const on = selectedCarats.includes(c.key);
+                            const ph = ((priceCurrency === 'USD' ? c.price_modifier : (c.price_modifier || 0) * fxRate) || 0).toFixed(2);
+                            return (
+                              <div key={c.key} className="np-mc-grid np-mc-row" style={{ gridTemplateColumns: '0.5fr 2.5fr 1.6fr' }}>
+                                <div className="np-mc-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={on}
+                                    style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--c-accent)' }}
+                                    title="Offer this diamond weight for this product"
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedCarats([...selectedCarats, c.key])
+                                        if (!productCaratPrices[c.key]) {
+                                          const g = priceCurrency === 'USD' ? c.price_modifier : (c.price_modifier || 0) * fxRate;
+                                          setProductCaratPrices(pc => ({ ...pc, [c.key]: String(g || 0) }))
+                                        }
+                                      } else {
+                                        setSelectedCarats(selectedCarats.filter(k => k !== c.key))
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <div className="np-mc-cell">{c.name}</div>
+                                <input
+                                  type="number" step="0.01"
+                                  className="a-input"
+                                  style={{ height: 36, width: '100%' }}
+                                  title="Upcharge over base price when a customer picks this diamond weight"
+                                  placeholder={ph}
+                                  value={productCaratPrices[c.key] ?? ''}
+                                  onChange={(e) => setProductCaratPrices(prev => ({ ...prev, [c.key]: e.target.value }))}
+                                />
+                              </div>
+                            );
+                          })}
+                          <div style={{ padding: '8px 4px', fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'var(--c-text-muted)' }}>
+                            {selectedCarats.length} of {carList.length} weights offered. Shopper price = base + upcharge.
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
 
                   {/* Global option management — permanent deletion lives here. */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--c-border)' }}>

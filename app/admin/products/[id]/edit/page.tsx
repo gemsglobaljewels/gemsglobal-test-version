@@ -7,9 +7,23 @@ import Link from "next/link";
 import RichTextEditor from "@/components/RichTextEditor";
 import { resolveAdminFxRate } from "@/lib/adminRate";
 import { extractDriveId, isDriveUrl } from "@/lib/video";
-import { sizeAppliesToCategory } from "@/lib/variantPricing";
+import { sizeAppliesToCategory, payloadStartingRetail } from "@/lib/variantPricing";
 import { optionAppliesToCategory, defaultScopeFor } from "@/lib/categoryScope";
 import { estimatedDeliveryText } from "@/lib/delivery";
+
+// ── Option merging (price-00 fix) ───────────────────────────────────────────
+// A product may carry option keys the GLOBAL lists don't have (a key deleted
+// globally, or seeded per-product — e.g. carat keys like "0-50-tcw"). Building
+// the Save payload by filtering the global lists dropped those keys, so the API
+// deleted every carat option AND every variant row; base price is 0 on variant
+// products, so the price showed 00. Always resolve through BOTH lists.
+function ownList(v: any): any[] {
+  return Array.isArray(v) ? v : [];
+}
+function normOpt(o: any) {
+  const key = String(o?.key || o?.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || '');
+  return { key, name: String(o?.name || key), price_modifier: Number(o?.price_modifier) || 0 };
+}
 
 const CSS = `
 .ep-chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -295,6 +309,57 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   // Per-row independent selection: one checkbox toggles ONE variant only.
   // Flat selectedMetals/selectedCarats stay synced as the union (storefront model).
   const [comboSel, setComboSel] = useState<Record<string, boolean>>({})
+  // Global option lists ∪ THIS product's own saved options. Grid + Save both
+  // read these so a key the globals don't carry is never dropped (price-00 fix).
+  // The product's OWN entries win over the globals: a globally disabled option
+  // this product still offers keeps its saved name/modifier, so an unrelated
+  // edit can never wipe it (that also zeroed the price).
+  const metalByKey = useMemo(() => {
+    const m: Record<string, any> = {}
+    ownList(productData?.metal_options).forEach((o: any) => {
+      const n = normOpt(o)
+      if (n.key) m[n.key] = { ...n, is_enabled: true }
+    })
+    ;(Array.isArray(metalOptions) ? metalOptions : []).forEach((o: any) => { if (o?.key && !m[o.key]) m[o.key] = o })
+    return m
+  }, [metalOptions, productData])
+  const caratByKey = useMemo(() => {
+    const m: Record<string, any> = {}
+    ownList(productData?.carat_options).forEach((o: any) => {
+      const n = normOpt(o)
+      if (n.key) m[n.key] = { ...n, is_enabled: true }
+    })
+    ;(Array.isArray(caratOptions) ? caratOptions : []).forEach((o: any) => { if (o?.key && !m[o.key]) m[o.key] = o })
+    return m
+  }, [caratOptions, productData])
+  const sizeByKey = useMemo(() => {
+    const m: Record<string, any> = {}
+    ownList(productData?.size_options).forEach((o: any) => {
+      const n = normOpt(o)
+      if (n.key) m[n.key] = { ...n, is_enabled: true }
+    })
+    ;(Array.isArray(sizeOptions) ? sizeOptions : []).forEach((o: any) => { if (o?.key && !m[o.key]) m[o.key] = o })
+    return m
+  }, [sizeOptions, productData])
+  // Keys the product itself carries — a globally disabled key is still saved
+  // when it is one of these (only a true global DELETE drops it, via
+  // dropOwnOption above).
+  const ownKeys = useMemo(() => {
+    const ks = (v: any) => new Set(ownList(v).map((o: any) => String(o?.key || o?.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || '')).filter(Boolean))
+    return { metal: ks(productData?.metal_options), carat: ks(productData?.carat_options), size: ks(productData?.size_options) }
+  }, [productData])
+  const gridMetals = useMemo(() => Object.values(metalByKey).filter((o: any) => o.is_enabled !== false), [metalByKey])
+  const gridCarats = useMemo(() => Object.values(caratByKey).filter((o: any) => o.is_enabled !== false), [caratByKey])
+  // Globally deleted options must not come back from the product's saved copy
+  // (the merged maps above read productData) — drop them there too.
+  const dropOwnOption = (field: 'metal_options' | 'carat_options' | 'size_options', keys: string[]) => {
+    if (keys.length === 0) return
+    const gone = new Set(keys)
+    setProductData((prev: any) => {
+      if (!prev || !Array.isArray(prev[field])) return prev
+      return { ...prev, [field]: prev[field].filter((o: any) => !gone.has(String(o?.key || ''))) }
+    })
+  }
   const recomputeFlat = (sel: Record<string, boolean>, hid: Record<string, boolean>) => {
     const mSet = new Set<string>();
     const cSet = new Set<string>();
@@ -601,6 +666,14 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       if (r.ok) {
         setCaratOptions(prev => prev.filter(o => o.key !== key))
         setSelectedCarats(prev => prev.filter(k => k !== key))
+        dropOwnOption('carat_options', [key])
+        setComboSel(prev => {
+          const next = { ...prev }
+          Object.keys(next).forEach(k => {
+            if (k === key || k.endsWith('__' + key)) delete next[k]
+          })
+          return next
+        })
         setProductCaratPrices(prev => {
           const next = { ...prev }
           delete next[key]
@@ -646,8 +719,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
   const addCustomOptionItem = (secId: string) => {
     const name = (newItemNames[secId] || '').trim(); if (!name) return
+    // Held in DISPLAY currency (converted to USD only at save) — same model
+    // as the metal/size/carat upcharge inputs.
     const rawPrice = parseFloat(newItemPrices[secId] || '0') || 0
-    const priceMod = priceCurrency === 'USD' ? rawPrice : Math.round((rawPrice / fxRate) * 100) / 100
     const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
     setCustomSections(prev => prev.map(sec => {
@@ -656,7 +730,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       if (exists) return sec
       return {
         ...sec,
-        items: [...sec.items, { key, name, price_modifier: priceMod, is_enabled: true }]
+        items: [...sec.items, { key, name, price_modifier: rawPrice, is_enabled: true }]
       }
     }))
     setNewItemNames(prev => ({ ...prev, [secId]: '' }))
@@ -674,13 +748,13 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   }
 
   const updateCustomOptionPrice = (secId: string, itemKey: string, priceStr: string) => {
+    // Display currency in state; converted to USD at save.
     const rawPrice = parseFloat(priceStr) || 0
-    const priceMod = priceCurrency === 'USD' ? rawPrice : Math.round((rawPrice / fxRate) * 100) / 100
     setCustomSections(prev => prev.map(sec => {
       if (sec.id !== secId) return sec
       return {
         ...sec,
-        items: sec.items.map(item => item.key === itemKey ? { ...item, price_modifier: priceMod } : item)
+        items: sec.items.map(item => item.key === itemKey ? { ...item, price_modifier: rawPrice } : item)
       }
     }))
   }
@@ -895,6 +969,14 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       if (r.ok) {
         setMetalOptions(prev => prev.filter(o => o.key !== key))
         setSelectedMetals(prev => prev.filter(k => k !== key))
+        dropOwnOption('metal_options', [key])
+        setComboSel(prev => {
+          const next = { ...prev }
+          Object.keys(next).forEach(k => {
+            if (k === key || k.startsWith(key + '__')) delete next[k]
+          })
+          return next
+        })
         setProductMetalPrices(prev => {
           const next = { ...prev }
           delete next[key]
@@ -960,6 +1042,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       if (okKeys.size === 0) { setError('Failed to delete metal options'); return }
       setMetalOptions(prev => prev.filter(o => !okKeys.has(o.key)))
       setSelectedMetals(prev => prev.filter(k => !okKeys.has(k)))
+      dropOwnOption('metal_options', Array.from(okKeys))
       setProductMetalPrices(prev => { const n = { ...prev }; okKeys.forEach(k => { delete n[k] }); return n })
       sweepCombosForKeys(okKeys, setComboSel, setHiddenCombos, setVariantOverrides, true)
       setBulkDelMetals([])
@@ -982,6 +1065,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       if (okKeys.size === 0) { setError('Failed to delete carat options'); return }
       setCaratOptions(prev => prev.filter(o => !okKeys.has(o.key)))
       setSelectedCarats(prev => prev.filter(k => !okKeys.has(k)))
+      dropOwnOption('carat_options', Array.from(okKeys))
       setProductCaratPrices(prev => { const n = { ...prev }; okKeys.forEach(k => { delete n[k] }); return n })
       sweepCombosForKeys(okKeys, setComboSel, setHiddenCombos, setVariantOverrides, false)
       setBulkDelCarats([])
@@ -1004,6 +1088,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       if (okKeys.size === 0) { setError('Failed to delete size options'); return }
       setSizeOptions(prev => prev.filter(o => !okKeys.has(o.key)))
       setSelectedSizes(prev => prev.filter(k => !okKeys.has(k)))
+      dropOwnOption('size_options', Array.from(okKeys))
       setProductSizePrices(prev => { const n = { ...prev }; okKeys.forEach(k => { delete n[k] }); return n })
       setBulkDelSizes([])
       setError('')
@@ -1019,6 +1104,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       if (r.ok) {
         setSizeOptions(prev => prev.filter(o => o.key !== key))
         setSelectedSizes(prev => prev.filter(k => k !== key))
+        dropOwnOption('size_options', [key])
         setProductSizePrices(prev => {
           const next = { ...prev }
           delete next[key]
@@ -1061,6 +1147,14 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       setProductCaratPrices(convMap)
       setProductSizePrices(convMap)
       setVariantOverrides(convMap)
+      // Custom-section items are display-currency in state too.
+      setCustomSections(prev => prev.map(sec => ({
+        ...sec,
+        items: sec.items.map(it => {
+          const n = parseFloat(String(it.price_modifier))
+          return { ...it, price_modifier: !isFinite(n) ? it.price_modifier : Math.round(n * f * 100) / 100 }
+        })
+      })))
       setNewMetalPrice(v => conv(v))
       setNewSizePrice(v => conv(v))
       setNewCaratPrice(v => conv(v))
@@ -1082,6 +1176,102 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     e.preventDefault()
   }
 
+  // ── Save-payload builder (single source of truth for Save + guards) ──
+  // Builds the USD pricing parts from current form state. Pure: reads state,
+  // returns everything handleSubmit (and the live price preview) needs.
+  const buildPricing = () => {
+    const toUSD = (disp: string) => {
+      const n = parseFloat(disp) || 0
+      return priceCurrency === 'USD' ? n : Math.round((n / fxRate) * 100) / 100
+    }
+    const optUsd = (o: any, store: Record<string, string>) => {
+      const disp = store[o.key] ?? String((priceCurrency === 'USD' ? o.price_modifier : (o.price_modifier || 0) * fxRate) || 0)
+      const n = toUSD(disp)
+      return isNaN(n) ? 0 : n
+    }
+    // Flat lists are the union of the ticked rows, but at load they come from
+    // the product's own saved options while comboSel comes from the saved
+    // variant rows — they can disagree. Rebuild them as a UNION so a saved row
+    // is never filtered out of the payload (that dropped rows/options and
+    // zeroed the price).
+    const tickedCombos: string[] = []
+    const metalSel = new Set(selectedMetals)
+    const caratSel = new Set(selectedCarats)
+    Object.keys(comboSel).forEach(k => {
+      if (!comboSel[k] || hiddenCombos[k]) return
+      tickedCombos.push(k)
+      const p = k.split('__')
+      if (p[0]) metalSel.add(p[0])
+      if (p[1]) caratSel.add(p[1])
+    })
+    const finalMetals = Array.from(metalSel)
+    const finalCarats = Array.from(caratSel)
+
+    // Per-row variant rates (USD). Each row owns its rate; untouched rows
+    // fall back to their shared metal+carat sum.
+    const variantRows: Array<{ metal_key: string; carat_key: string; price_modifier: number }> = []
+    // Only ticked (offered) combos are saved — one row ticked = one variant saved.
+    tickedCombos.forEach(vkey => {
+      const parts = vkey.split('__')
+      const mk = parts[0]
+      const ck = parts[1]
+      if (!mk || !ck || !finalMetals.includes(mk) || !finalCarats.includes(ck)) return
+      // Never skip a row because a lookup missed — the merged maps above cover
+      // the product's own keys, and a fallback keeps the saved rate alive.
+      const m = metalByKey[mk] || { key: mk, name: mk, price_modifier: 0 }
+      const c = caratByKey[ck] || { key: ck, name: ck, price_modifier: 0 }
+      const disp = variantOverrides[vkey]
+      const usd = disp !== undefined
+        ? toUSD(disp)
+        : Math.round((optUsd(m, productMetalPrices) + optUsd(c, productCaratPrices)) * 100) / 100
+      variantRows.push({ metal_key: mk, carat_key: ck, price_modifier: isNaN(usd) ? 0 : usd })
+    })
+    const touchedVariants = Object.keys(variantOverrides).length > 0
+
+    // Payloads are built from the product's SELECTED KEYS through the merged
+    // maps — never by filtering the global lists (that dropped keys like
+    // "0-50-tcw" and wiped every variant row → price 00). A globally disabled
+    // key the product itself carries is still saved (only a true global
+    // DELETE removes it).
+    const optPayload = (keys: string[], byKey: Record<string, any>, prices: Record<string, string>, own: Set<string>) => {
+      const out: Array<{ key: string; name: string; price_modifier: number }> = []
+      let unresolved = 0
+      keys.forEach(k => {
+        if (!k || out.some(x => x.key === k)) return
+        const o = byKey[k]
+        if (!o) { unresolved++; return }        // key known to neither list
+        if (o.is_enabled === false && !own.has(k)) return
+        const rawMod = parseFloat(prices[k] || '0')
+        const modUSD = priceCurrency === 'USD' ? rawMod : Math.round((rawMod / fxRate) * 100) / 100
+        out.push({ key: k, name: String(o.name || k), price_modifier: isNaN(modUSD) ? 0 : modUSD })
+      })
+      return { out, unresolved }
+    }
+    const metalP = optPayload(finalMetals, metalByKey, productMetalPrices, ownKeys.metal)
+    const sizeP = optPayload(selectedSizes, sizeByKey, productSizePrices, ownKeys.size)
+    const caratP = optPayload(finalCarats, caratByKey, productCaratPrices, ownKeys.carat)
+    // Safety net: if any selected key resolved nowhere, send nothing for that
+    // list (JSON.stringify drops it) so the API keeps the stored rows instead
+    // of receiving `[]`, which deletes them. Same for a partial variant build.
+    const keepOrOmit = (p: { out: any[]; unresolved: number }) => (p.unresolved > 0 ? undefined : p.out)
+    const variantRowsOut = variantRows.length === tickedCombos.length ? variantRows : undefined
+    return { toUSD, finalMetals, finalCarats, tickedCombos, variantRows, variantRowsOut, touchedVariants, metalP, sizeP, caratP, keepOrOmit }
+  }
+
+  // Shopper-facing "Starting at" for the CURRENT form state (USD) — drives
+  // the live preview under the price field and the zero-price save guard.
+  // Falls back to the stored product wherever the payload omits a list.
+  const previewStartingUSD = (): number => {
+    const pr = buildPricing()
+    const storedBase = Number(productData?.price) || 0
+    const raw = parseFloat(formData.price)
+    const base = formData.price === '' ? storedBase : (isNaN(raw) ? 0 : (priceCurrency === 'USD' ? raw : Math.round((raw / fxRate) * 100) / 100))
+    const effMetals = pr.keepOrOmit(pr.metalP) ?? (Array.isArray(productData?.metal_options) ? productData.metal_options : [])
+    const effCarats = pr.keepOrOmit(pr.caratP) ?? (Array.isArray(productData?.carat_options) ? productData.carat_options : [])
+    const effVariants = pr.variantRowsOut ?? (Array.isArray(productData?.variant_prices) ? productData.variant_prices : [])
+    return payloadStartingRetail(base, effMetals, effCarats, effVariants)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setLoading(true)
     // Retail price is optional when variants are offered — each variant row
@@ -1091,46 +1281,29 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     try {
       const raw = parseFloat(formData.price)
       if (formData.price !== '' && isNaN(raw)) { setError('Invalid price format.'); setLoading(false); return }
-      const priceUSD = isNaN(raw) ? 0 : (priceCurrency === 'USD' ? raw : Math.round((raw / fxRate) * 100) / 100)
+      // Empty price + variants → leave the stored base alone (omit it) instead
+      // of writing 0 over a priced base.
+      const priceUSD = formData.price === '' ? undefined : (isNaN(raw) ? 0 : (priceCurrency === 'USD' ? raw : Math.round((raw / fxRate) * 100) / 100))
 
-      let finalMetals = selectedMetals;
-      let finalCarats = selectedCarats;
-      // Flat lists are kept as the union of ticked rows (recomputeFlat), so no
-      // extra filtering is needed here.
+      const pr = buildPricing()
+      const { finalMetals, finalCarats, tickedCombos, variantRowsOut, touchedVariants, metalP, sizeP, caratP, keepOrOmit, toUSD } = pr
 
-      // Per-row variant rates (USD). Each row owns its rate; untouched rows
-      // fall back to their shared metal+carat sum.
-      const toUSD = (disp: string) => {
-        const n = parseFloat(disp) || 0
-        return priceCurrency === 'USD' ? n : Math.round((n / fxRate) * 100) / 100
+      // ── Zero-price guard ──
+      // A save that leaves the shopper-facing price at 00 is never what the
+      // admin wants — block it and say exactly which price to set.
+      const effMetals = keepOrOmit(metalP) ?? (Array.isArray(productData?.metal_options) ? productData.metal_options : [])
+      const effCarats = keepOrOmit(caratP) ?? (Array.isArray(productData?.carat_options) ? productData.carat_options : [])
+      const effVariants = variantRowsOut ?? (Array.isArray(productData?.variant_prices) ? productData.variant_prices : [])
+      const effBase = priceUSD !== undefined ? priceUSD : (Number(productData?.price) || 0)
+      if (!(payloadStartingRetail(effBase, effMetals, effCarats, effVariants) > 0)) {
+        const onlySingle = (finalMetals.length > 0) !== (finalCarats.length > 0)
+        setError(onlySingle
+          ? 'This product would save with price 00 (no priced option). Set an upcharge on each material / diamond-weight row below, or set a retail price.'
+          : (finalMetals.length > 0 || finalCarats.length > 0)
+            ? 'This product would save with price 00 (every variant totals 0). Set a per-row rate in the Material & Diamond Weight table, or set a retail price.'
+            : 'This product would save with price 00. Set a retail price first.')
+        setLoading(false); return
       }
-      const optUsd = (o: any, store: Record<string, string>) => {
-        const disp = store[o.key] ?? String((priceCurrency === 'USD' ? o.price_modifier : (o.price_modifier || 0) * fxRate) || 0)
-        const n = toUSD(disp)
-        return isNaN(n) ? 0 : n
-      }
-      const metalByKey: Record<string, any> = {}
-      metalOptions.forEach(o => { metalByKey[o.key] = o })
-      const caratByKey: Record<string, any> = {}
-      caratOptions.forEach(o => { caratByKey[o.key] = o })
-      const variantRows: Array<{ metal_key: string; carat_key: string; price_modifier: number }> = []
-      // Only ticked (offered) combos are saved — one row ticked = one variant saved.
-      Object.keys(comboSel).forEach(vkey => {
-        if (!comboSel[vkey] || hiddenCombos[vkey]) return
-        const parts = vkey.split('__')
-        const mk = parts[0]
-        const ck = parts[1]
-        if (!mk || !ck || !finalMetals.includes(mk) || !finalCarats.includes(ck)) return
-        const m = metalByKey[mk]
-        const c = caratByKey[ck]
-        if (!m || !c) return
-        const disp = variantOverrides[vkey]
-        const usd = disp !== undefined
-          ? toUSD(disp)
-          : Math.round((optUsd(m, productMetalPrices) + optUsd(c, productCaratPrices)) * 100) / 100
-        variantRows.push({ metal_key: mk, carat_key: ck, price_modifier: isNaN(usd) ? 0 : usd })
-      })
-      const touchedVariants = Object.keys(variantOverrides).length > 0
 
       const res = await fetch(`/api/products/${productId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -1144,49 +1317,26 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           model_3d: model3d,
           image: mainImage || images[0] || null,
           images: mainImage ? [mainImage, ...images.filter(u => u !== mainImage)] : images,
-          metal_options: metalOptions
-            .filter(o => o.is_enabled !== false && finalMetals.includes(o.key))
-            .map(o => {
-              const rawMod = parseFloat(productMetalPrices[o.key] || '0')
-              const modUSD = priceCurrency === 'USD' ? rawMod : Math.round((rawMod / fxRate) * 100) / 100
-              return {
-                key: o.key,
-                name: o.name,
-                price_modifier: isNaN(modUSD) ? 0 : modUSD
-              }
-            }),
-          size_options: sizeOptions
-            .filter(o => o.is_enabled !== false && selectedSizes.includes(o.key))
-            .map(o => {
-              const rawMod = parseFloat(productSizePrices[o.key] || '0')
-              const modUSD = priceCurrency === 'USD' ? rawMod : Math.round((rawMod / fxRate) * 100) / 100
-              return {
-                key: o.key,
-                name: o.name,
-                price_modifier: isNaN(modUSD) ? 0 : modUSD
-              }
-            }),
-          carat_options: caratOptions
-            .filter(o => o.is_enabled !== false && finalCarats.includes(o.key))
-            .map(o => {
-              const rawMod = parseFloat(productCaratPrices[o.key] || '0')
-              const modUSD = priceCurrency === 'USD' ? rawMod : Math.round((rawMod / fxRate) * 100) / 100
-              return {
-                key: o.key,
-                name: o.name,
-                price_modifier: isNaN(modUSD) ? 0 : modUSD
-              }
-            }),
+          metal_options: keepOrOmit(metalP),
+          size_options: keepOrOmit(sizeP),
+          carat_options: keepOrOmit(caratP),
+          // Custom items are held in DISPLAY currency in state — convert back
+          // to USD for storage (same as metal/size/carat upcharges).
           custom_options: customSections.map(sec => ({
             title: sec.title,
-            items: sec.items.filter(i => i.is_enabled !== false)
+            items: sec.items.filter(i => i.is_enabled !== false).map(i => ({
+              ...i,
+              price_modifier: toUSD(String(i.price_modifier ?? '0')),
+            }))
           })),
-          variant_prices: variantRows
+          variant_prices: variantRowsOut
         }),
       })
       const savedBody: any = await res.json().catch(() => ({}))
       if (res.ok) {
-        if (savedBody.variant_saved === false && touchedVariants) {
+        if (savedBody.price_protected) {
+          setError('Other changes saved, but the pricing was left untouched: this save would have left the product at price 00. Set a retail price or a priced variant, then save again.')
+        } else if (savedBody.variant_saved === false && touchedVariants) {
           setError('Product saved, but per-row rates were NOT saved — run migration 116_product_variant_prices.sql in Supabase SQL Editor, then re-enter the row rates and Save again.')
         } else {
           router.push('/admin/products')
@@ -1416,6 +1566,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                         if (!isFinite(raw)) return '0.00'
                         return priceCurrency === 'USD' ? raw.toFixed(2) : (Math.round((raw / fxRate) * 100) / 100).toFixed(2)
                       })()}</span>
+                      {(selectedMetals.length > 0 || selectedCarats.length > 0) && (
+                        <span> · Shopper sees <span style={{ color: 'var(--c-accent)', fontWeight: 600 }}>starting at ${previewStartingUSD().toFixed(2)}</span></span>
+                      )}
                     </p>
                     {(selectedMetals.length > 0 || selectedCarats.length > 0) && (
                       <p className="a-hint" style={{ marginTop: 4 }}>Optional — variants carry their own prices; empty is stored as 0 base.</p>
@@ -1503,8 +1656,10 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                     <span className="a-hint" style={{ margin: 0 }}>Any value 0–95%</span>
                   </div>
                   {discountPercent > 0 && (() => {
-                    const raw = parseFloat(formData.price)
-                    const orig = !isFinite(raw) ? 0 : (priceCurrency === 'USD' ? raw : Math.round((raw / fxRate) * 100) / 100)
+                    // Sale runs off the shopper-facing starting price (base +
+                    // first variant), not the bare base — variant products
+                    // store base 0, so a base-only preview always showed $0.00.
+                    const orig = previewStartingUSD()
                     const sale = Math.round(orig * (1 - discountPercent / 100) * 100) / 100
                     const inr = (usd: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Math.round(usd * fxRate))
                     return (
@@ -1513,7 +1668,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                         <span>({inr(sale)})</span>{' '}
                         <span style={{ textDecoration: 'line-through' }}>${orig.toFixed(2)}</span>{' '}
                         <span>({inr(orig)})</span>{' '}
-                        · {discountPercent}% off (USD, before metal/size upcharges)
+                        · {discountPercent}% off (USD, on the starting variant incl. upcharges)
                       </p>
                     )
                   })()}
@@ -1655,9 +1810,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                 <div className="a-field">
                   <div className="a-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>Material &amp; Total Diamond Weight</span>
-                    {metalOptions.filter(o => o.is_enabled !== false).length > 0 && caratOptions.filter(o => o.is_enabled !== false).length > 0 && (
+                    {gridMetals.length > 0 && gridCarats.length > 0 && (
                       <span style={{ fontSize: 11, fontWeight: 400, textTransform: 'none', color: 'var(--c-text-muted)' }}>
-                        {metalOptions.filter(o => o.is_enabled !== false).length * caratOptions.filter(o => o.is_enabled !== false).length} variants
+                        {gridMetals.length * gridCarats.length} variants
                       </span>
                     )}
                   </div>
@@ -1681,9 +1836,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                       <span>Show hidden</span>
                     </label>
                     <button type="button" className="a-btn a-btn--subtle a-btn--sm" onClick={() => {
-                      setSelectedMetals(metalOptions.filter(o => o.is_enabled !== false).map(o => o.key))
-                      setComboSel(() => { const n: Record<string, boolean> = {}; metalOptions.filter(o => o.is_enabled !== false).forEach(mm => { caratOptions.filter(o => o.is_enabled !== false).forEach(cc => { n[mm.key + '__' + cc.key] = true; }); }); return n; })
-                      setSelectedCarats(caratOptions.filter(o => o.is_enabled !== false).map(o => o.key))
+                      setSelectedMetals(gridMetals.map(o => o.key))
+                      setComboSel(() => { const n: Record<string, boolean> = {}; gridMetals.forEach(mm => { gridCarats.forEach(cc => { n[mm.key + '__' + cc.key] = true; }); }); return n; })
+                      setSelectedCarats(gridCarats.map(o => o.key))
                       setHiddenCombos({})
                     }}>
                       Select all
@@ -1706,8 +1861,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                       <div></div>
                     </div>
                     {(() => {
-                      const metList = metalOptions.filter(o => o.is_enabled !== false);
-                      const carList = caratOptions.filter(o => o.is_enabled !== false);
+                      const metList = gridMetals;
+                      const carList = gridCarats;
                       const upPh = (o: any) => ((priceCurrency === 'USD' ? o.price_modifier : (o.price_modifier || 0) * fxRate) || 0).toFixed(2);
                       if (metList.length === 0 && carList.length === 0) {
                         return (
@@ -1781,6 +1936,112 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                       );
                     })()}
                   </div>
+
+                  {/* ── Single-sided variants (price-00 fix) ──────────────
+                      With only materials (or only diamond weights) there are no
+                      metal×carat combinations, so the grid above is empty and the
+                      per-option prices used to be invisible AND uneditable —
+                      products saved that way had base 0 + zero modifiers = 00
+                      everywhere with no way to fix them. These flat rows expose
+                      each option's upcharge (base + upcharge = shopper price). */}
+                  {gridMetals.length > 0 && gridCarats.length === 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+                      <div className="ep-mc-grid ep-mc-head" style={{ gridTemplateColumns: '0.5fr 2.5fr 1.6fr' }}>
+                        <div style={{ textAlign: 'center' }}>SEL</div>
+                        <div>MATERIAL</div>
+                        <div>UPCHARGE ({priceCurrency})</div>
+                      </div>
+                      {gridMetals.map((m: any) => {
+                        const on = selectedMetals.includes(m.key);
+                        const ph = ((priceCurrency === 'USD' ? m.price_modifier : (m.price_modifier || 0) * fxRate) || 0).toFixed(2);
+                        return (
+                          <div key={m.key} className="ep-mc-grid ep-mc-row" style={{ gridTemplateColumns: '0.5fr 2.5fr 1.6fr' }}>
+                            <div className="ep-mc-check">
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--c-accent)' }}
+                                title="Offer this material for this product"
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedMetals([...selectedMetals, m.key])
+                                    if (!productMetalPrices[m.key]) {
+                                      const g = priceCurrency === 'USD' ? m.price_modifier : (m.price_modifier || 0) * fxRate;
+                                      setProductMetalPrices(pm => ({ ...pm, [m.key]: String(g || 0) }))
+                                    }
+                                  } else {
+                                    setSelectedMetals(selectedMetals.filter(k => k !== m.key))
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div className="ep-mc-cell">{m.name}</div>
+                            <input
+                              type="number" step="0.01"
+                              className="a-input"
+                              style={{ height: 36, width: '100%' }}
+                              title="Upcharge over base price when a customer picks this material"
+                              placeholder={ph}
+                              value={productMetalPrices[m.key] ?? ''}
+                              onChange={(e) => setProductMetalPrices(prev => ({ ...prev, [m.key]: e.target.value }))}
+                            />
+                          </div>
+                        );
+                      })}
+                      <div style={{ padding: '8px 4px', fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'var(--c-text-muted)' }}>
+                        {selectedMetals.length} of {gridMetals.length} materials offered. Shopper price = base + upcharge.
+                      </div>
+                    </div>
+                  )}
+                  {gridCarats.length > 0 && gridMetals.length === 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+                      <div className="ep-mc-grid ep-mc-head" style={{ gridTemplateColumns: '0.5fr 2.5fr 1.6fr' }}>
+                        <div style={{ textAlign: 'center' }}>SEL</div>
+                        <div>DIAMOND WEIGHT</div>
+                        <div>UPCHARGE ({priceCurrency})</div>
+                      </div>
+                      {gridCarats.map((c: any) => {
+                        const on = selectedCarats.includes(c.key);
+                        const ph = ((priceCurrency === 'USD' ? c.price_modifier : (c.price_modifier || 0) * fxRate) || 0).toFixed(2);
+                        return (
+                          <div key={c.key} className="ep-mc-grid ep-mc-row" style={{ gridTemplateColumns: '0.5fr 2.5fr 1.6fr' }}>
+                            <div className="ep-mc-check">
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--c-accent)' }}
+                                title="Offer this diamond weight for this product"
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedCarats([...selectedCarats, c.key])
+                                    if (!productCaratPrices[c.key]) {
+                                      const g = priceCurrency === 'USD' ? c.price_modifier : (c.price_modifier || 0) * fxRate;
+                                      setProductCaratPrices(pc => ({ ...pc, [c.key]: String(g || 0) }))
+                                    }
+                                  } else {
+                                    setSelectedCarats(selectedCarats.filter(k => k !== c.key))
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div className="ep-mc-cell">{c.name}</div>
+                            <input
+                              type="number" step="0.01"
+                              className="a-input"
+                              style={{ height: 36, width: '100%' }}
+                              title="Upcharge over base price when a customer picks this diamond weight"
+                              placeholder={ph}
+                              value={productCaratPrices[c.key] ?? ''}
+                              onChange={(e) => setProductCaratPrices(prev => ({ ...prev, [c.key]: e.target.value }))}
+                            />
+                          </div>
+                        );
+                      })}
+                      <div style={{ padding: '8px 4px', fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'var(--c-text-muted)' }}>
+                        {selectedCarats.length} of {gridCarats.length} weights offered. Shopper price = base + upcharge.
+                      </div>
+                    </div>
+                  )}
 
                   {/* Global option management — permanent deletion lives here. */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--c-border)' }}>

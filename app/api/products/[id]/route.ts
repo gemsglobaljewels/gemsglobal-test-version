@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
 import { refreshStorefront } from '@/lib/revalidate'
 import { loadGlobalSizes, buildProductSizes } from '@/lib/productSizes'
+import { payloadStartingRetail } from '@/lib/variantPricing'
 
 export const dynamic = 'force-dynamic'
 
@@ -219,7 +220,12 @@ export async function PUT(
     }
     if (body.category !== undefined) updates.category = body.category
     if (category_id !== undefined) updates.category_id = category_id
-    if (body.price !== undefined) updates.price = body.price
+    // Accept only sane numbers — a NaN / Infinity / numeric-string price must
+    // never overwrite the stored price (that zeroed the price on some edits).
+    if (body.price !== undefined) {
+      const n = Number(body.price)
+      if (Number.isFinite(n) && n >= 0) updates.price = n
+    }
     if (body.description !== undefined) updates.description = body.description || ''
     if (body.carat !== undefined) updates.carat = body.carat || ''
     if (body.color !== undefined) updates.color = body.color || ''
@@ -314,10 +320,56 @@ export async function PUT(
     // Try update; retry on unique slug conflict or missing sku column
     let result: any = null
     let variantSaved = true
+    // ── Price-00 backstop ──────────────────────────────────────────────
+    // A save that would leave the shopper-facing (starting) price at 0 while
+    // the stored product is priced is never intentional — it is how edits
+    // used to zero the price (options/variants wiped while base is 0). In
+    // that case keep the stored price + options + variant rows and tell the
+    // client (price_protected) instead of destroying priced data. Other
+    // fields (name, images, …) still save normally.
+    let pricingLocked = false
+    try {
+      const { data: preRow } = await supabaseServer.from('products').select('price').eq('id', id).single()
+      const prePrice = Number((preRow as any)?.price) || 0
+      const [preM, preC, preV] = await Promise.all([
+        supabaseServer.from('product_metal_options').select('price_modifier').eq('product_id', id),
+        supabaseServer.from('product_carat_options').select('price_modifier').eq('product_id', id),
+        supabaseServer.from('product_variant_prices').select('price_modifier').eq('product_id', id),
+      ])
+      const preMetals = Array.isArray(preM.data) ? preM.data : []
+      const preCarats = Array.isArray(preC.data) ? preC.data : []
+      const preVariants = !preV.error && Array.isArray(preV.data) ? preV.data : []
+      const postBase = updates.price !== undefined ? updates.price : prePrice
+      const postMetals = Array.isArray(body.metal_options) ? body.metal_options : preMetals
+      const postCarats = Array.isArray(body.carat_options) ? body.carat_options : preCarats
+      const postVariants = Array.isArray(body.variant_prices) ? body.variant_prices : preVariants
+      if (payloadStartingRetail(postBase, postMetals, postCarats, postVariants) <= 0 &&
+        payloadStartingRetail(prePrice, preMetals, preCarats, preVariants) > 0) {
+        pricingLocked = true
+        if (updates.price !== undefined) updates.price = prePrice
+      }
+    } catch { /* fail open — a guard must never block a save on read errors */ }
     // Per-variant (metal x carat) price overrides — needs migration 116.
     // Fail soft when the table does not exist yet.
     const syncVariants = async () => {
+      if (pricingLocked) return
       if (!body.variant_prices || !Array.isArray(body.variant_prices)) return
+      // Fail safe: an EMPTY row list while the payload still offers metals or
+      // carats, yet the product HAS rows, means the client failed to resolve its
+      // option keys (it used to filter against the global lists and drop keys
+      // like "0-50-tcw"). Wiping left a variant product with base price 0 and no
+      // rows → price showed 00. Clearing on purpose empties the option lists
+      // too, so that path is unaffected — keep the stored rows instead.
+      if (body.variant_prices.length === 0) {
+        const stillOffers =
+          (Array.isArray(body.metal_options) && body.metal_options.length > 0) ||
+          (Array.isArray(body.carat_options) && body.carat_options.length > 0)
+        if (stillOffers) {
+          const { data: existing } = await supabaseServer
+            .from('product_variant_prices').select('id').eq('product_id', id)
+          if (existing && existing.length > 0) return
+        }
+      }
       try {
         const del = await supabaseServer.from('product_variant_prices').delete().eq('product_id', id)
         if (del.error) throw del.error
@@ -358,8 +410,9 @@ export async function PUT(
         .select()
         .single()
       if (!error) {
-        // Update metal options if provided
-        if (body.metal_options && Array.isArray(body.metal_options)) {
+        // Update metal options if provided (skipped while price-protected —
+        // an empty list there would wipe the stored priced options).
+        if (!pricingLocked && body.metal_options && Array.isArray(body.metal_options)) {
           // Delete existing options
           await supabaseServer.from('product_metal_options').delete().eq('product_id', id)
 
@@ -377,7 +430,7 @@ export async function PUT(
         }
 
         // Update size options if provided
-        if (body.size_options && Array.isArray(body.size_options)) {
+        if (!pricingLocked && body.size_options && Array.isArray(body.size_options)) {
           // Delete existing options
           await supabaseServer.from('product_size_options').delete().eq('product_id', id)
 
@@ -395,7 +448,7 @@ export async function PUT(
         }
 
         // Update carat options if provided
-        if (body.carat_options && Array.isArray(body.carat_options)) {
+        if (!pricingLocked && body.carat_options && Array.isArray(body.carat_options)) {
           try {
             await supabaseServer.from('product_carat_options').delete().eq('product_id', id)
             if (body.carat_options.length > 0) {
@@ -471,7 +524,7 @@ export async function PUT(
     }
     // Edited product must reflect on home/collection/PDP with a single refresh.
     refreshStorefront((result as any).slug ? [`/products/${(result as any).slug}`] : [])
-    return NextResponse.json({ ...result, variant_saved: variantSaved })
+    return NextResponse.json({ ...result, variant_saved: variantSaved, price_protected: pricingLocked })
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to update product' },

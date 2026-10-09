@@ -59,6 +59,32 @@ export function startingRetailPrice(p: any): number {
   return configuredRetailPrice(p, d.metal || undefined, d.carat || undefined);
 }
 
+/* Shopper-facing price for a SAVE payload (admin guard + API backstop).
+   Same semantics as startingRetailPrice but over raw payload parts instead
+   of a product object: base + first variant row when rows exist, else base
+   + first metal/carat modifiers, else the bare base. Anything here that is
+   not a finite number counts as 0. A result <= 0 means the save would leave
+   the product showing 00 on the storefront. */
+export function payloadStartingRetail(
+  base: unknown,
+  metalOpts: Array<{ price_modifier?: unknown }> | undefined | null,
+  caratOpts: Array<{ price_modifier?: unknown }> | undefined | null,
+  variantRows: Array<{ price_modifier?: unknown }> | undefined | null
+): number {
+  const b = Number(base) || 0;
+  const metals = Array.isArray(metalOpts) ? metalOpts : [];
+  const carats = Array.isArray(caratOpts) ? caratOpts : [];
+  const rows = Array.isArray(variantRows) ? variantRows : [];
+  if (rows.length > 0) {
+    const up = Number(rows[0]?.price_modifier);
+    return b + (Number.isFinite(up) ? up : 0);
+  }
+  if (metals.length === 0 && carats.length === 0) return b;
+  const mMod = metals.length > 0 ? Number(metals[0]?.price_modifier) || 0 : 0;
+  const cMod = carats.length > 0 ? Number(carats[0]?.price_modifier) || 0 : 0;
+  return b + mMod + cMod;
+}
+
 /* Storefront visibility — variant-aware. A base price of 0 is fine when the
    product carries priced variants (the shopper never sees the bare base);
    such pieces must NOT be treated as archived/unsellable. Mirrors the

@@ -326,6 +326,20 @@ export async function POST(request: NextRequest) {
     if (!body.name || !body.category || (!hasVariants && !body.price)) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+    // Never create a product the shopper would see at 00: base + first
+    // variant row (else base + first option modifiers) must clear zero.
+    {
+      const base = Number(body.price) || 0
+      const rows = Array.isArray(body.variant_prices) ? body.variant_prices : []
+      const mOpts = Array.isArray(body.metal_options) ? body.metal_options : []
+      const cOpts = Array.isArray(body.carat_options) ? body.carat_options : []
+      const start = rows.length > 0
+        ? base + (Number(rows[0]?.price_modifier) || 0)
+        : base + (mOpts.length > 0 ? Number(mOpts[0]?.price_modifier) || 0 : 0) + (cOpts.length > 0 ? Number(cOpts[0]?.price_modifier) || 0 : 0)
+      if (!(start > 0)) {
+        return NextResponse.json({ error: 'Set a retail price or a priced variant — a product with no price shows 00 and stays hidden.' }, { status: 400 })
+      }
+    }
 
     let category_id = body.category_id
     if (!category_id && body.category) {
@@ -393,7 +407,7 @@ export async function POST(request: NextRequest) {
       // Some DBs store category as a string (NOT NULL); keep both when possible.
       category: body.category,
       category_id,
-      price: Number(body.price) || 0,
+      price: (() => { const n = Number(body.price); return Number.isFinite(n) && n >= 0 ? n : 0 })(),
       description: body.description || '',
       carat: body.carat || '',
       color: body.color || '',
