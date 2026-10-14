@@ -1173,6 +1173,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     if (el.tagName === 'TEXTAREA') return                 // newline in descriptions
     if (el.tagName === 'BUTTON') return                   // Enter = click on a focused button
     if ((el as HTMLInputElement).type === 'submit') return
+    // The rich-text description box is a contentEditable DIV (not a textarea),
+    // so Enter there must insert a newline — never submit the form.
+    if (el.isContentEditable || (typeof el.closest === 'function' && el.closest('.rte-editor, [contenteditable="true"]'))) return
     e.preventDefault()
   }
 

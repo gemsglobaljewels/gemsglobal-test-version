@@ -252,6 +252,11 @@ export default function RichTextEditor({ value, onChange, placeholder = 'Write d
         contentEditable={isMounted}
         onInput={handleInput}
         onBlur={handleInput}
+        onKeyDown={(e) => {
+          // Enter must insert a newline inside the editor — never let it
+          // bubble up to a form-level handler that submits/swallows it.
+          if (e.key === 'Enter') e.stopPropagation();
+        }}
         data-placeholder={placeholder}
       />
     </div>

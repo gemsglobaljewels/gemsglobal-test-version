@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Plus, Save, RotateCw, Trash2, Gem, Layers, Check, EyeOff, ImageIcon, Loader2 } from 'lucide-react'
 import ScopeCategoryPicker from '@/components/admin/ScopeCategoryPicker'
-import { appliesLabel, type CategoryRef } from '@/lib/categoryScope'
+import { appliesLabel, categoryFamily, groupByFamily, type CategoryRef } from '@/lib/categoryScope'
 
 type ShapeItem = { key: string; name: string; sub?: string; image?: string; is_enabled?: boolean; category_ids?: string[] }
 
@@ -18,12 +18,9 @@ export default function AdminDiamondShapesPage() {
   // Category rows for the per-row scope editor + the row currently open.
   const [categories, setCategories] = useState<CategoryRef[]>([])
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
-  // Scope filter — picking a category narrows the list to the shapes that
-  // category actually sees and hides the scope editing.
-  const [scopeFilter, setScopeFilter] = useState<string>('all')
-  // "Which show on the homepage" filter — same pick-what-you-see tabs the
-  // Styles admin has, just over one list instead of sections.
-  const [homeFilter, setHomeFilter] = useState<'all' | 'on' | 'hidden'>('all')
+  // Homepage-box tabs — one jewellery family at a time, exactly like the
+  // Styles admin ("All shapes" shows every box grouped). 'ALL' = everything.
+  const [tab, setTab] = useState<string>('ALL')
   const fileRefs = useRef<(HTMLInputElement | null)[]>([])
 
   function slugify(s: string) {
@@ -70,11 +67,15 @@ export default function AdminDiamondShapesPage() {
   }, [])
 
   function addRow() {
+    // A row added inside a box starts in that box (its categories stamped),
+    // so it shows up right away instead of landing somewhere unexpected.
+    // Added from "All shapes" it starts unscoped ("Featured").
+    const famIds = tab === 'ALL'
+      ? []
+      : categories.filter(c => categoryFamily(c.name) === tab).map(c => c.id)
     setItems((prev) => [...prev, {
       key: '', name: '', sub: '', image: '', is_enabled: true,
-      // Created while a category chip is on → belongs to that category, so it
-      // shows up right away instead of silently landing as "all categories".
-      category_ids: scopeFilter === 'all' ? [] : [scopeFilter],
+      category_ids: famIds,
     }])
     setIsDirty(true)
   }
@@ -162,34 +163,19 @@ export default function AdminDiamondShapesPage() {
   }
 
   // ── What the table shows ────────────────────────────────────────────────
-  // A → Z by name (kept on screen even after a local edit, before Save),
-  // narrowed by the category chip and then by the homepage tab.
+  // Same model as the Styles admin: one homepage box (jewellery family) at a
+  // time, A → Z inside each box; "All shapes" stacks every box with a header
+  // row so nothing ever mixes silently. Tick "Categories" on a row to move it
+  // into another box — it jumps there live, even before Save.
   const isEnabled = (it: ShapeItem) => it.is_enabled !== false
-  const scopeMatch = (it: ShapeItem) => {
-    if (scopeFilter === 'all') return true
-    // Strict: a category chip lists only the shapes assigned to THAT category.
-    // A row scoped to "All categories" (empty list) is not a Bracelets row —
-    // it lives in the "All categories" view, so it must not leak in here.
-    const ids = Array.isArray(it.category_ids) ? it.category_ids : []
-    return ids.includes(scopeFilter)
-  }
-  const byName = (a: { it: ShapeItem }, b: { it: ShapeItem }) =>
-    String(a.it.name || '').localeCompare(String(b.it.name || ''), undefined, { sensitivity: 'base' })
-  const scopedRows = items
-    .map((it, idx) => ({ it, idx }))
-    .filter(({ it }) => scopeMatch(it))
-    .sort(byName)
-  const sortedRows = scopedRows
-    .filter(({ it }) =>
-      homeFilter === 'all' ? true
-        : homeFilter === 'on' ? isEnabled(it)
-          : !isEnabled(it)
-    )
-  const scopeCatName = categories.find(c => c.id === scopeFilter)?.name || ''
-  const showScopeEditor = scopeFilter === 'all'
-
+  const byName = (a: ShapeItem, b: ShapeItem) =>
+    String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+  const boxSections = groupByFamily(items, categories)
+  const visibleSections = tab === 'ALL' ? boxSections : boxSections.filter(s => s.title === tab)
+  // groupByFamily hands back the same row refs, so the original index (needed
+  // by edit/upload/delete) is recovered through identity.
+  const idxOf = new Map<ShapeItem, number>(items.map((it, i) => [it, i]))
   const totalOn = items.filter(isEnabled).length
-  const scopedOn = scopedRows.filter(({ it }) => isEnabled(it)).length
   const noImage = items.filter(it => !it.image).length
 
   return (
@@ -208,25 +194,17 @@ export default function AdminDiamondShapesPage() {
         .a-tab.is-on .a-tab-count{ color:#fff; opacity:.7; }
         .a-tab-count{ font-size:11px; color:var(--c-text-muted); }
 
-        /* Scope filter bar — same visual language as the size picker */
-        .sz-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
-        .sz-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-        .sz-chip {
-          display: inline-flex; align-items: center; gap: 6px;
-          height: 30px; padding: 0 14px; cursor: pointer;
-          background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 999px;
-          font-family: var(--font-dmsans); font-size: 11.5px; font-weight: 500;
-          color: var(--c-text-muted); transition: background .15s, color .15s, border-color .15s;
+        /* Group header rows inside the table — same as the Styles admin */
+        .a-grp td{
+          background:var(--c-surface-2); border-top:1px solid var(--c-border);
+          padding:10px 14px;
         }
-        .sz-chip:hover { border-color: var(--c-accent); color: var(--c-text); }
-        .sz-chip.is-on { background: var(--c-text); border-color: var(--c-text); color: #fff; }
-        .sz-hint { font-family: var(--font-dmsans); font-size: 11px; color: var(--c-text-muted); }
-        .sz-bar .sz-hint { margin-left: auto; }
-        .sz-scope-chip {
-          font-family: var(--font-dmsans); font-size: 10.5px; color: var(--c-text-muted);
-          background: var(--c-surface-2); border: 1px solid var(--c-border);
-          border-radius: 999px; padding: 2px 9px; white-space: nowrap;
+        .a-grp-inner{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+        .a-grp-title{
+          font-family:var(--a-serif); font-style:italic; font-size:15px;
+          color:var(--c-text); letter-spacing:.01em;
         }
+        .a-grp-note{ font-family:var(--a-sans); font-size:11.5px; color:var(--c-text-muted); }
 
         /* Name + slug stacked, switch caption */
         .a-key-input{ margin-top:6px; }
@@ -252,10 +230,9 @@ export default function AdminDiamondShapesPage() {
           <div className="a-eyebrow">Catalog Settings</div>
           <h1 className="a-title">Diamond <em>Shapes</em></h1>
           <p className="a-subtitle">
-            One shared list of stone cuts. The tabs pick which rows you see — <strong>On homepage</strong> is exactly
-            what the Explore Shapes widget shows, so a row switched off disappears from the homepage. The category
-            chips open that category’s <em>own</em> shapes only (rows marked “All categories” stay in the first
-            chip); rows stay A → Z.
+            One box per jewellery family on the homepage — <strong>Bracelets</strong>, <strong>Diamonds</strong>…
+            The tabs open one box at a time (“All shapes” stacks every box grouped). Tick <strong>Categories</strong> on
+            a row to move it into another box; the switch turns a row on/off on the homepage. Rows stay A → Z.
           </p>
         </div>
         <div className="a-head-actions">
@@ -315,66 +292,32 @@ export default function AdminDiamondShapesPage() {
         </div>
       </div>
 
-      {/* Which shapes: everything / only homepage / only hidden */}
+      {/* Which box: everything grouped, or one box at a time */}
       <div className="a-toolbar" style={{ marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
         <div className="a-tabs">
           <button
-            className={`a-tab${homeFilter === 'all' ? ' is-on' : ''}`}
-            onClick={() => setHomeFilter('all')}
-            title="Every shape, homepage or not"
+            className={`a-tab${tab === 'ALL' ? ' is-on' : ''}`}
+            onClick={() => setTab('ALL')}
+            title="Every box stacked and grouped, like the homepage"
           >
-            All shapes <span className="a-tab-count">{scopedRows.length}</span>
+            All shapes <span className="a-tab-count">{items.length}</span>
           </button>
-          <button
-            className={`a-tab${homeFilter === 'on' ? ' is-on' : ''}`}
-            onClick={() => setHomeFilter('on')}
-            title="Shapes the Explore Shapes widget shows"
-          >
-            On homepage <span className="a-tab-count">{scopedOn}</span>
-          </button>
-          <button
-            className={`a-tab${homeFilter === 'hidden' ? ' is-on' : ''}`}
-            onClick={() => setHomeFilter('hidden')}
-            title="Switched off — not on the homepage"
-          >
-            Hidden <span className="a-tab-count">{scopedRows.length - scopedOn}</span>
-          </button>
-        </div>
-        <div className="a-toolbar-group">
-          <button className="a-btn a-btn--primary" onClick={addRow} disabled={saving}>
-            <Plus size={15} strokeWidth={2.5} /> Add Shape
-          </button>
-        </div>
-      </div>
-
-      {/* Category chips — pick a category to see only its shapes (A → Z). */}
-      <div className="sz-bar">
-        <div className="sz-chips" role="group" aria-label="Which category's shapes to list">
-          <button
-            type="button"
-            className={`sz-chip${scopeFilter === 'all' ? ' is-on' : ''}`}
-            onClick={() => setScopeFilter('all')}
-            title="Every shape, with its scope chip and category editor"
-          >
-            All categories
-          </button>
-          {categories.map(c => (
+          {boxSections.map(s => (
             <button
-              key={c.id}
-              type="button"
-              className={`sz-chip${scopeFilter === c.id ? ' is-on' : ''}`}
-              onClick={() => setScopeFilter(c.id)}
-              title={`Only the shapes ${c.name} is offered`}
+              key={s.title}
+              className={`a-tab${tab === s.title ? ' is-on' : ''}`}
+              onClick={() => setTab(s.title)}
+              title={`Only the shapes in the “${s.title}” homepage box`}
             >
-              {c.name}
+              {s.title} <span className="a-tab-count">{s.rows.length}</span>
             </button>
           ))}
         </div>
-        <span className="sz-hint">
-          {scopeFilter === 'all'
-            ? 'Scope chips and “Categories” editing are on the rows below'
-            : `Only shapes assigned to ${scopeCatName} — “All categories” rows stay in the first view (scope editing happens there)`}
-        </span>
+        <div className="a-toolbar-group">
+          <button className="a-btn a-btn--primary" onClick={addRow} disabled={saving}>
+            <Plus size={15} strokeWidth={2.5} /> Add Shape{tab === 'ALL' ? '' : ` to ${tab}`}
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -414,36 +357,57 @@ export default function AdminDiamondShapesPage() {
                     </div>
                   </td>
                 </tr>
-              ) : sortedRows.length === 0 ? (
+              ) : visibleSections.length === 0 || visibleSections.every(s => s.rows.length === 0) ? (
                 <tr>
                   <td colSpan={6}>
                     <div className="a-empty">
                       <div className="a-empty-ico"><Gem size={26} /></div>
                       <div className="a-empty-title">
-                        {scopeFilter !== 'all'
-                          ? `No shapes assigned to ${scopeCatName} yet`
-                          : homeFilter === 'hidden' ? 'Nothing hidden' : 'Nothing on the homepage yet'}
+                        {tab !== 'ALL' ? `No shapes in ${tab} yet` : 'Nothing here yet'}
                       </div>
                       <div className="a-empty-text">
-                        {scopeFilter !== 'all'
-                          ? `“All categories” rows don’t count here. Tick Categories → ${scopeCatName} on a shape in the first view, or hit “Add Shape” — a row added while this chip is on starts in ${scopeCatName}.`
-                          : homeFilter === 'hidden'
-                            ? 'Every shape is switched on — flip a row’s “On homepage” switch off to hide it.'
-                            : 'Switch a row’s “On homepage” switch on and save to publish it.'}
+                        {tab !== 'ALL'
+                          ? `Click “Add Shape to ${tab}” — the new row starts in this box. Or tick Categories on any row to move it here.`
+                          : 'Click “Add Shape” to create your first shape.'}
                       </div>
-                      <button
-                        className="a-btn a-btn--subtle"
-                        onClick={() => { setScopeFilter('all'); setHomeFilter('all') }}
-                        style={{ marginTop: 16 }}
-                      >
-                        Show all shapes
-                      </button>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
+                        {tab !== 'ALL' && (
+                          <button className="a-btn a-btn--primary" onClick={addRow}>
+                            <Plus size={15} /> Add Shape to {tab}
+                          </button>
+                        )}
+                        <button
+                          className="a-btn a-btn--subtle"
+                          onClick={() => setTab('ALL')}
+                        >
+                          Show all shapes
+                        </button>
+                      </div>
                     </div>
                   </td>
                 </tr>
               ) : (
-                sortedRows.map(({ it, idx }) => {
-                  const enabled = isEnabled(it)
+                visibleSections.map(sec => {
+                  const rows = [...sec.rows].sort(byName)
+                  const offCount = rows.filter(it => !isEnabled(it)).length
+                  return (
+                    <Fragment key={sec.title}>
+                      {tab === 'ALL' && (
+                        <tr className="a-grp">
+                          <td colSpan={6}>
+                            <div className="a-grp-inner">
+                              <span className="a-grp-title">{sec.title === 'Featured' ? 'Featured shapes' : sec.title}</span>
+                              <span className="a-badge a-badge--neutral">
+                                {rows.length} shape{rows.length === 1 ? '' : 's'}
+                              </span>
+                              {offCount > 0 && <span className="a-grp-note">{offCount} hidden on the homepage</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {rows.map((it) => {
+                        const idx = idxOf.get(it) ?? -1
+                        const enabled = isEnabled(it)
                   return (
                     <tr key={it.key || `row-${idx}`}>
                       {/* Image — click the thumb to upload (same as Styles) */}
@@ -500,27 +464,21 @@ export default function AdminDiamondShapesPage() {
                         />
                       </td>
 
-                      {/* Scope: label + editor (only in the All-categories view) */}
+                      {/* Scope: which box this row lives in + editor */}
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          {showScopeEditor ? (
-                            <>
-                              <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11.5, color: 'var(--c-text-muted)' }}>
-                                {appliesLabel({ category_ids: it.category_ids }, categories)}
-                              </span>
-                              <button
-                                type="button"
-                                className="a-btn a-btn--subtle a-btn--sm"
-                                onClick={() => setExpandedKey(expandedKey === (it.key || `row-${idx}`) ? null : (it.key || `row-${idx}`))}
-                              >
-                                <Layers size={12} />&nbsp;{expandedKey === (it.key || `row-${idx}`) ? 'Close' : 'Categories'}
-                              </button>
-                            </>
-                          ) : (
-                            <span className="sz-scope-chip">Offered to {scopeCatName}</span>
-                          )}
+                          <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11.5, color: 'var(--c-text-muted)' }}>
+                            {appliesLabel({ category_ids: it.category_ids }, categories)}
+                          </span>
+                          <button
+                            type="button"
+                            className="a-btn a-btn--subtle a-btn--sm"
+                            onClick={() => setExpandedKey(expandedKey === (it.key || `row-${idx}`) ? null : (it.key || `row-${idx}`))}
+                          >
+                            <Layers size={12} />&nbsp;{expandedKey === (it.key || `row-${idx}`) ? 'Close' : 'Categories'}
+                          </button>
                         </div>
-                        {showScopeEditor && expandedKey === (it.key || `row-${idx}`) && (
+                        {expandedKey === (it.key || `row-${idx}`) && (
                           <ScopeCategoryPicker
                             rowLabel={it.name || it.key || 'shape'}
                             value={it.category_ids || []}
@@ -558,6 +516,9 @@ export default function AdminDiamondShapesPage() {
                         </div>
                       </td>
                     </tr>
+                      )
+                      })}
+                    </Fragment>
                   )
                 })
               )}

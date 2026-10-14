@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { groupByFamily, type CategoryRef } from "@/lib/categoryScope";
+import { groupByFamily, categoryFamily, type CategoryRef } from "@/lib/categoryScope";
 
 interface ShapeItem {
   key: string;
@@ -57,7 +57,30 @@ const DEFAULT_SHAPES: ShapeItem[] = [
 ];
 
 /* One section: desktop row + its own mobile carousel / dots. */
-function ShapeBlock({ shapes, heading }: { shapes: ShapeItem[]; heading?: string }) {
+
+/* Category-scoped shape link: a shape clicked inside the "Bracelets" box must
+   list bracelet rounds, not every round in the catalogue. The box resolves to
+   the real categor(ies) behind it through the shape's own category_ids, so a
+   shape living in two boxes (e.g. Asscher in Bracelets AND Diamonds) scopes
+   correctly in each. Falls back to the shape-only link whenever the box maps
+   to anything but exactly one category (multi-category families, unscoped
+   "Featured" rows) — never a dead restrictive link. */
+function shapeHref(shape: ShapeItem, family: string, categories: CategoryRef[]): string {
+  const shapeLink = `/collection?shape=${shape.key}`;
+  const nameOf = new Map((categories || []).map((c) => [String(c.id), String(c.name || '')]));
+  const own = (Array.isArray(shape.category_ids) ? shape.category_ids : []).map(String);
+  // Ids of THIS box: the shape's own categories that belong to this family.
+  let scope = own.filter((id) => categoryFamily(nameOf.get(id) || '') === family);
+  // Defensive (stale category list): fall back to any known own categories.
+  if (scope.length === 0) scope = own.filter((id) => nameOf.has(id));
+  const names = [...new Set(scope.map((id) => nameOf.get(id) || '').filter(Boolean))];
+  if (names.length === 1) {
+    return `/collection?category=${encodeURIComponent(names[0])}&shape=${shape.key}`;
+  }
+  return shapeLink;
+}
+
+function ShapeBlock({ shapes, heading, family, categories }: { shapes: ShapeItem[]; heading?: string; family: string; categories: CategoryRef[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const [current, setCurrent] = useState(0);
   const autoRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -127,7 +150,7 @@ function ShapeBlock({ shapes, heading }: { shapes: ShapeItem[]; heading?: string
         {shapes.map((s, i) => (
           <Link
             key={s.key}
-            href={`/collection?shape=${s.key}`}
+            href={shapeHref(s, family, categories)}
             className="ds-item"
             onMouseEnter={() => setHovered(i)}
             onMouseLeave={() => setHovered(null)}
@@ -184,7 +207,7 @@ function ShapeBlock({ shapes, heading }: { shapes: ShapeItem[]; heading?: string
             return (
               <Link
                 key={s.key}
-                href={`/collection?shape=${s.key}`}
+                href={shapeHref(s, family, categories)}
                 className="ds-slide"
                 style={{
                   transform: isActive
@@ -308,6 +331,8 @@ export default function DiamondShapes({
           <ShapeBlock
             key={sec.title}
             shapes={sec.rows}
+            family={sec.title}
+            categories={categories || []}
             heading={sec.title === "Featured" && !multi
               ? undefined
               : sec.title === "Featured" ? "Featured Shapes" : sec.title}
