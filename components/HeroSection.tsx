@@ -21,7 +21,17 @@ interface Slide {
 
 // ─── COMPONENT ──────────────────────────────────────────────────
 export default function LuxuryHero({ initialHeroData = null as any }) {
-  const [slides, setSlides] = useState<Slide[]>([]);
+  // Start from the SSR prop so the hero paints on the very first render
+  // instead of popping in after hydration (late LCP + layout shift).
+  const [slides, setSlides] = useState<Slide[]>(() => {
+    if (initialHeroData) {
+      if (initialHeroData.slides && initialHeroData.slides.length > 0) {
+        return initialHeroData.slides;
+      }
+      return [initialHeroData];
+    }
+    return [];
+  });
   const [currentIndex, setCurrentIndex] = useState(0);
 
   // Section ref + scroll progress drive the parallax/scroll-out effect below.
@@ -41,15 +51,11 @@ export default function LuxuryHero({ initialHeroData = null as any }) {
   const contentY = useTransform(scrollYProgress, [0, 1], [0, prefersReducedMotion ? 0 : 64]);
   const contentOpacity = useTransform(scrollYProgress, [0, 0.65], [1, 0]);
 
-  // Fetch CMS data
+  // CMS data: SSR prop already seeded the state above — only fetch on the
+  // client when the server had nothing (keeps a failed SSR fetch from
+  // leaving the hero permanently blank).
   useEffect(() => {
     if (initialHeroData) {
-      // Handle both single slide and slides array
-      if (initialHeroData.slides && initialHeroData.slides.length > 0) {
-        setSlides(initialHeroData.slides);
-      } else {
-        setSlides([initialHeroData]);
-      }
       return;
     }
     fetch("/api/admin/hero")

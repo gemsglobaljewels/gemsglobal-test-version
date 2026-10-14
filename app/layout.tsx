@@ -1,32 +1,55 @@
 import type { Metadata, Viewport } from 'next'
-import { Cormorant_Garamond, Bodoni_Moda, DM_Sans } from 'next/font/google'
+import localFont from 'next/font/local'
 import { createClient } from '@supabase/supabase-js'
 
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
 import ClientProviders from '@/components/ClientProviders'
 
-const cormorant = Cormorant_Garamond({
-  subsets: ['latin'],
+// Self-hosted (public/fonts, OFL-licensed latin woff2) — identical families,
+// weights and CSS variables as before, but the build no longer downloads
+// anything from Google Fonts, so deploys never fail on font fetching.
+const cormorant = localFont({
+  src: [
+    { path: '../public/fonts/cormorant-garamond-latin-300-normal.woff2', weight: '300', style: 'normal' },
+    { path: '../public/fonts/cormorant-garamond-latin-300-italic.woff2', weight: '300', style: 'italic' },
+    { path: '../public/fonts/cormorant-garamond-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: '../public/fonts/cormorant-garamond-latin-400-italic.woff2', weight: '400', style: 'italic' },
+    { path: '../public/fonts/cormorant-garamond-latin-500-normal.woff2', weight: '500', style: 'normal' },
+    { path: '../public/fonts/cormorant-garamond-latin-500-italic.woff2', weight: '500', style: 'italic' },
+    { path: '../public/fonts/cormorant-garamond-latin-600-normal.woff2', weight: '600', style: 'normal' },
+    { path: '../public/fonts/cormorant-garamond-latin-600-italic.woff2', weight: '600', style: 'italic' },
+    { path: '../public/fonts/cormorant-garamond-latin-700-normal.woff2', weight: '700', style: 'normal' },
+    { path: '../public/fonts/cormorant-garamond-latin-700-italic.woff2', weight: '700', style: 'italic' },
+  ],
   variable: '--font-cormorant',
-  weight: ['300', '400', '500', '600', '700'],
-  style: ['normal', 'italic'],
-  display: 'swap'
+  display: 'swap',
 })
 
-const bodoni = Bodoni_Moda({
-  subsets: ['latin'],
+const bodoni = localFont({
+  src: [
+    { path: '../public/fonts/bodoni-moda-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: '../public/fonts/bodoni-moda-latin-400-italic.woff2', weight: '400', style: 'italic' },
+    { path: '../public/fonts/bodoni-moda-latin-700-normal.woff2', weight: '700', style: 'normal' },
+    { path: '../public/fonts/bodoni-moda-latin-700-italic.woff2', weight: '700', style: 'italic' },
+    { path: '../public/fonts/bodoni-moda-latin-900-normal.woff2', weight: '900', style: 'normal' },
+    { path: '../public/fonts/bodoni-moda-latin-900-italic.woff2', weight: '900', style: 'italic' },
+  ],
   variable: '--font-bodoni',
-  weight: ['400', '700', '900'],
-  style: ['normal', 'italic'],
-  display: 'swap'
+  display: 'swap',
 })
 
-const dmsans = DM_Sans({
-  subsets: ['latin'],
+const dmsans = localFont({
+  src: [
+    { path: '../public/fonts/dm-sans-latin-300-normal.woff2', weight: '300', style: 'normal' },
+    { path: '../public/fonts/dm-sans-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: '../public/fonts/dm-sans-latin-500-normal.woff2', weight: '500', style: 'normal' },
+    { path: '../public/fonts/dm-sans-latin-600-normal.woff2', weight: '600', style: 'normal' },
+    { path: '../public/fonts/dm-sans-latin-700-normal.woff2', weight: '700', style: 'normal' },
+    { path: '../public/fonts/dm-sans-latin-800-normal.woff2', weight: '800', style: 'normal' },
+  ],
   variable: '--font-dmsans',
-  weight: ['300', '400', '500', '600', '700', '800'],
-  display: 'swap'
+  display: 'swap',
 })
 
 // Dynamic Metadata Generation
@@ -126,8 +149,6 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth" className={`${cormorant.variable} ${bodoni.variable} ${dmsans.variable}`} suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://ik.imagekit.io" />
         <link rel="preconnect" href="https://pub-5f3798d6e2094791979a906bcf260a07.r2.dev" />
         <script

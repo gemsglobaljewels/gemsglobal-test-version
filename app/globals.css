@@ -120,6 +120,67 @@ h6 {
 }
 
 /* ════════════════════════════════════════════════
+   HOMEPAGE SECTION HEADING — one shared look
+   Uppercase, wide-tracked DM Sans in black, slightly larger than the old
+   navy eyebrows. Every homepage block label uses this (Featured Products,
+   Shop by Category, style/shape boxes, Testimonials, …) so the whole page
+   reads as one design. Layout (margins/padding/alignment) stays with each
+   block — this class is typography only.
+   ════════════════════════════════════════════════ */
+.home-sec-title {
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  /* letter-spacing adds trailing space that pushes centered caps visually
+     left — indent back by half the tracking so the heading sits truly centered */
+  text-indent: .21em;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-size: clamp(15px, 1.8vw, 19px);
+  font-weight: 500;
+  letter-spacing: .42em;
+  text-transform: uppercase;
+  color: #111;
+}
+@media (max-width: 768px) {
+  .home-sec-title {
+    font-size: 13px;
+    letter-spacing: .34em;
+    text-indent: .17em;
+  }
+}
+
+/* Homepage section detail / subtitle — same everywhere: one font, one
+   color, one spacing rhythm (sits right under .home-sec-title). */
+.home-sec-desc {
+  margin: 14px auto 0;
+  padding: 0;
+  max-width: 640px;
+  text-align: center;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-size: clamp(13px, 1.5vw, 15px);
+  font-weight: 400;
+  line-height: 1.8;
+  letter-spacing: .02em;
+  color: #555;
+}
+
+/* Homepage item-name labels (category / style / shape / recipient cards) —
+   one look: small black caps, centered. Card layout stays local. */
+.home-item-name {
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  text-indent: .1em;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: #111;
+}
+
+/* ════════════════════════════════════════════════
    TAILWIND LAYERS
    ════════════════════════════════════════════════ */
 @layer utilities {

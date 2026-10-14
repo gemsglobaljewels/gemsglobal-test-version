@@ -130,7 +130,7 @@ export default function ShopByCategory({ initialCategories }: { initialCategorie
       <style>{CSS}</style>
 
       {/* ── Title ── */}
-      <p className="sbc2-title">Shop by Category</p>
+      <p className="sbc2-title home-sec-title">Shop by Category</p>
 
       {/* ── Drag-scroll track ── */}
       <div
@@ -165,7 +165,7 @@ export default function ShopByCategory({ initialCategories }: { initialCategorie
 
             {/* Text area */}
             <div className="sbc2-info">
-              <p className="sbc2-name">{cat.name}</p>
+              <p className="sbc2-name home-item-name">{cat.name}</p>
               <span className="sbc2-cta">
                 SHOP NOW
                 <svg
@@ -197,34 +197,24 @@ export default function ShopByCategory({ initialCategories }: { initialCategorie
    CSS — scoped to sbc2- prefix, zero conflicts
 ════════════════════════════════════════════════════ */
 const CSS = `
-/* ── Root ── */
+/* ── Root (same vertical rhythm as every homepage block) ── */
 .sbc2-root {
   width: 100%;
   background: #fff;
-  padding: 0 clamp(16px, 3vw, 48px) clamp(32px, 5vw, 64px);
+  padding: clamp(48px,6vw,80px) clamp(16px, 3vw, 48px);
   box-sizing: border-box;
 }
 
-/* ── Title ── */
+/* ── Title (typography comes from the shared .home-sec-title; layout only) ── */
 .sbc2-title {
   margin: 0;
-  padding: 56px 0 0;
-  text-align: center;
-  font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
-  font-size: 15px;
-  font-weight: 400;
-  letter-spacing: .55em;
-  text-transform: uppercase;
-  color: #1a2e4a;
-  margin-bottom: 48px;
+  padding: 0;
+  margin-bottom: 40px;
 }
 
 /* Responsive title on mobile */
 @media (max-width: 768px) {
-  .sbc2-title { 
-    font-size: 12px; 
-    letter-spacing: .42em; 
-    padding: 48px 0 0; 
+  .sbc2-title {
     margin-bottom: 32px;
   }
 }
@@ -320,28 +310,24 @@ const CSS = `
   background: #EDE8DF;
 }
 
-/* Category name */
+/* Category name (typography comes from the shared .home-item-name) */
 .sbc2-name {
   margin: 0;
-  font-family: var(--font-dmsans),'DM Sans',system-ui,sans-serif;
-  font-size: clamp(14px, 1.4vw, 18px);
-  font-weight: 600;
-  color: #1a1714;
   line-height: 1.2;
-  letter-spacing: -0.01em;
 }
 
 /* Shop Now CTA */
 .sbc2-cta {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 3px;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-dmsans),'DM Sans',system-ui,sans-serif;
   font-size: clamp(9px, 0.8vw, 11px);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #1a1714;
+  color: #111;
   text-decoration: none;
   transition: gap 0.3s ease;
 }
@@ -350,7 +336,7 @@ const CSS = `
 }
 .sbc2-chevron {
   flex-shrink: 0;
-  color: #1a1714;
+  color: #111;
   transition: transform 0.3s ease;
 }
 .sbc2-card:hover .sbc2-chevron {
@@ -361,9 +347,6 @@ const CSS = `
 
 /* Mobile: horizontal drag-scroll strip */
 @media (max-width: 768px) {
-  .sbc2-root {
-    padding: 0 0 40px;
-  }
   .sbc2-track {
     display: flex;
     flex-direction: row;

@@ -132,23 +132,10 @@ export default function HomeContent({
         <RingsByStyle initialStyles={initialStyles} categories={styleCategories} sections={styleSections} />
         <DiamondShapes initialDiamondShapes={initialDiamondShapes} categories={styleCategories} />
         {/* Featured Products */}
-        <section className="py-24 border-y border-[var(--c-accent)]/8">
+        <section style={{ padding: "clamp(48px,6vw,80px) 0" }}>
           <div className="container mx-auto px-6 sm:px-4">
             {/* Simple elegant title like Rings by Style */}
-            <p
-              style={{
-                margin: 0,
-                padding: "0 0 48px",
-                textAlign: "center",
-                fontFamily:
-                  "var(--font-main, Cormorant Garamond), Georgia, serif",
-                fontSize: "clamp(12px, 2vw, 15px)",
-                fontWeight: 400,
-                letterSpacing: "0.55em",
-                textTransform: "uppercase",
-                color: "#1a2e4a",
-              }}
-            >
+            <p className="home-sec-title" style={{ padding: "0 0 40px" }}>
               {featuredLabel}
             </p>
 

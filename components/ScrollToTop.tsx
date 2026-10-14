@@ -152,7 +152,14 @@ export default function ScrollToTop() {
   }, [])
 
   const scrollTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    // Glide through Lenis when it's running (native smooth-scroll would
+    // fight its animation loop); otherwise fall back to the browser.
+    const lenis = (window as any).__lenis
+    if (lenis && typeof lenis.scrollTo === 'function') {
+      lenis.scrollTo(0, { duration: 1.4 })
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
   }
 
   return (

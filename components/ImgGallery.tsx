@@ -208,34 +208,15 @@ export default function CTASection() {
           --spring:cubic-bezier(.34,1.56,.64,1);
           --py:0px;
           position:relative;background:var(--w);
-          border-top:1px solid var(--bd);
-          padding:clamp(46px,6vw,82px) clamp(14px,3vw,40px) clamp(44px,5vw,74px);
+          padding:clamp(48px,6vw,80px) clamp(14px,3vw,40px);
         }
         .lb *{ box-sizing:border-box; }
 
         /* ── editorial heading ── */
         .lb-head{ max-width:740px;margin:0 auto clamp(30px,4vw,50px);text-align:center; }
-        .lb-eyebrow{ display:inline-flex;align-items:center;gap:10px;margin-bottom:13px; }
-        .lb-eyebrow .ln{ width:28px;height:1px; }
-        .lb-eyebrow .ln.l{ background:linear-gradient(90deg,transparent,var(--a3)); }
-        .lb-eyebrow .ln.r{ background:linear-gradient(90deg,var(--a3),transparent); }
-        .lb-eyebrow span{
-          font-family:var(--sans);font-size:8px;font-weight:600;
-          letter-spacing:.36em;text-transform:uppercase;color:var(--a);
-        }
+        /* Title + detail typography come from the shared homepage classes */
         .lb-title{
-          font-family:var(--serif);font-size:clamp(30px,5vw,58px);font-weight:300;
-          line-height:1.07;letter-spacing:.01em;color:var(--ink);margin:0;
-        }
-        .lb-title em{
-          font-style:italic;font-weight:500;color:transparent;
-          background:linear-gradient(120deg,var(--a3),var(--a) 50%,var(--a2));
-          -webkit-background-clip:text;background-clip:text;
-        }
-        .lb-sub{
-          margin:14px auto 0;max-width:470px;
-          font-family:var(--sans);font-size:12px;font-weight:300;letter-spacing:.05em;
-          line-height:1.7;color:var(--mu);
+          margin:0;
         }
 
         /* ── masonry grid ──
@@ -387,13 +368,8 @@ export default function CTASection() {
 
       {/* heading */}
       <div className="lb-head">
-        <div className="lb-eyebrow">
-          <span className="ln l" />
-          <span>The Lookbook</span>
-          <span className="ln r" />
-        </div>
-        <h2 className="lb-title">Worn by those who <em>dare</em></h2>
-        <p className="lb-sub">
+        <h2 className="lb-title home-sec-title">Worn by those who dare</h2>
+        <p className="lb-sub home-sec-desc">
           An editorial wall of moments, muses and masterpieces — step inside the story.
         </p>
       </div>

@@ -314,16 +314,13 @@ export default function InstagramFeed() {
     };
 
     return (
-        <section style={{ fontFamily: "sans-serif", padding: "4rem 1rem", background: "#fff", width: "100%" }}>
+        <section style={{ fontFamily: "sans-serif", padding: "clamp(48px,6vw,80px) 1rem", background: "#fff", width: "100%" }}>
             <div style={{ maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
                 <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    marginBottom: "1.5rem", flexWrap: "wrap", gap: "12px",
+                    display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center",
+                    marginBottom: "40px", gap: "16px",
                 }}>
-                    <h2 style={{
-                        fontSize: "clamp(24px, 4vw, 34px)", fontWeight: 400,
-                        color: "#111", letterSpacing: "-0.5px", margin: 0,
-                    }}>
+                    <h2 className="home-sec-title">
                         Shop the Feed
                     </h2>
 

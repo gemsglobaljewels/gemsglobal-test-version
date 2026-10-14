@@ -82,7 +82,7 @@ function StyleCard({ style }: { style: StyleItem }) {
         {img ? <img src={img} alt={style.name} loading="lazy" draggable={false} /> : <LetterPlate name={style.name} />}
       </div>
       <div className="st-meta">
-        <span className="st-name">{style.name}</span>
+        <span className="st-name home-item-name">{style.name}</span>
         {style.sub ? <span className="st-sub">{style.sub}</span> : null}
       </div>
     </Link>
@@ -94,8 +94,7 @@ function StyleBox({ title, styles }: { title: string; styles: StyleItem[] }) {
   return (
     <section className="st-box">
       <header className="st-head">
-        <h3 className="st-title">{title}</h3>
-        <span className="st-rule" aria-hidden />
+        <h3 className="st-title home-sec-title">{title}</h3>
       </header>
       <div className="st-grid">
         {styles.map(s => <StyleCard key={s.key} style={s} />)}
@@ -177,7 +176,7 @@ export default function RingsByStyle({
 const CSS = `
 .st-root {
   width: 100%;
-  padding: clamp(40px, 6vw, 72px) 0 clamp(24px, 4vw, 48px);
+  padding: clamp(48px,6vw,80px) 0;
 }
 
 .st-stack {
@@ -201,25 +200,13 @@ const CSS = `
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  margin-bottom: clamp(20px, 2.6vw, 32px);
+  margin-bottom: clamp(28px, 3.4vw, 44px);
   text-align: center;
 }
 
+/* Box title typography comes from the shared .home-sec-title */
 .st-title {
   margin: 0;
-  font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
-  font-size: clamp(21px, 2.4vw, 30px);
-  font-weight: 500;
-  font-style: italic;
-  letter-spacing: .04em;
-  color: #12233b;
-}
-
-.st-rule {
-  display: block;
-  width: 74px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #C9A96E 30%, #C9A96E 70%, transparent);
 }
 
 /* ── Cards ── */
@@ -291,11 +278,6 @@ const CSS = `
 }
 
 .st-name {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .18em;
-  text-transform: uppercase;
-  color: #12233b;
   transition: color .25s ease;
 }
 
@@ -304,20 +286,18 @@ const CSS = `
 .st-sub {
   font-size: 12px;
   line-height: 1.5;
-  color: #6B7C93;
+  color: #555;
 }
 
 /* ══════════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════════ */
 @media (max-width: 720px) {
-  .st-root { padding: 32px 0 16px; }
   .st-stack { width: calc(100% - 24px); gap: 34px; }
-  .st-title { font-size: 20px; }
+  /* Box title size comes from the shared .home-sec-title */
   /* Two cards per row — the whole box stays visible without swiping. */
   .st-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   .st-card { max-width: none; gap: 10px; }
-  .st-name { font-size: 10px; letter-spacing: .14em; }
   .st-sub { font-size: 11.5px; }
 }
 `

@@ -43,7 +43,7 @@ export default function ShopByRecipient() {
     return (
       <section className="sbr-root" style={{ paddingBottom: 64 }}>
         <style>{CSS}</style>
-        <p className="sbr-title">Shop by Recipient</p>
+        <p className="sbr-title home-sec-title">Shop by Recipient</p>
         <div className="sbr-track">
           {[1, 2].map(i => (
             <article key={i} className="sbr-card animate-pulse">
@@ -66,7 +66,7 @@ export default function ShopByRecipient() {
     <section className="sbr-root">
       <style>{CSS}</style>
 
-      <p className="sbr-title">Shop by Recipient</p>
+      <p className="sbr-title home-sec-title">Shop by Recipient</p>
 
       <div className="sbr-track">
         {categories.map((cat) => (
@@ -85,7 +85,7 @@ export default function ShopByRecipient() {
             </div>
 
             <div className="sbr-info">
-              <p className="sbr-name">{cat.name}</p>
+              <p className="sbr-name home-item-name">{cat.name}</p>
               <span className="sbr-cta">
                 SHOP NOW
                 <svg
@@ -117,29 +117,19 @@ const CSS = `
 .sbr-root {
   width: 100%;
   background: #fff;
-  padding: 0 0 clamp(24px, 4vw, 48px);
+  padding: clamp(48px,6vw,80px) 0;
   box-sizing: border-box;
 }
 
 .sbr-title {
   margin: 0;
-  padding: 48px 0 0;
-  text-align: center;
-  font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
-  font-size: 14px;
-  font-weight: 400;
-  letter-spacing: 0.5em;
-  text-transform: uppercase;
-  color: #1a2e4a;
-  margin-bottom: 32px;
+  padding: 0;
+  margin-bottom: 40px;
 }
 
 @media (max-width: 768px) {
-  .sbr-title { 
-    font-size: 11px; 
-    letter-spacing: 0.4em; 
-    padding: 36px 0 0; 
-    margin-bottom: 24px;
+  .sbr-title {
+    margin-bottom: 32px;
   }
 }
 
@@ -231,24 +221,20 @@ const CSS = `
 
 .sbr-name {
   margin: 0;
-  font-family: var(--font-dmsans),'DM Sans',system-ui,sans-serif;
-  font-size: clamp(14px, 1.6vw, 18px);
-  font-weight: 600;
-  color: #1a1714;
   line-height: 1.2;
-  letter-spacing: -0.01em;
 }
 
 .sbr-cta {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 3px;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-dmsans),'DM Sans',system-ui,sans-serif;
   font-size: clamp(9px, 0.9vw, 11px);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #1a1714;
+  color: #111;
   text-decoration: none;
   transition: gap 0.3s ease;
 }
@@ -257,7 +243,7 @@ const CSS = `
 }
 .sbr-chevron {
   flex-shrink: 0;
-  color: #1a1714;
+  color: #111;
   transition: transform 0.3s ease;
 }
 .sbr-card:hover .sbr-chevron {

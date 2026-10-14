@@ -12,11 +12,13 @@ const ChatWidget = dynamic(() => import('@/components/ChatWidget'), {
 })
 const AnalyticsTracker = dynamic(() => import('@/components/AnalyticsTracker'), { ssr: false })
 const AuthCookieBridge = dynamic(() => import('@/components/AuthCookieBridge'), { ssr: false })
+const SmoothScroll = dynamic(() => import('@/components/SmoothScroll'), { ssr: false })
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
     <>
         {children}
+      <SmoothScroll />
       <AuthCookieBridge />
       <AnalyticsTracker />
       <FloatingButtons />

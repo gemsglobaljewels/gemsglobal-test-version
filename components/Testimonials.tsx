@@ -745,23 +745,15 @@ export default function TestimonialsSection() {
       `}</style>
       <section style={{
         background: COLORS.bg,
-        padding: isMobile ? '32px 0' : '72px 0',
+        padding: 'clamp(48px,6vw,80px) 0',
         position: 'relative',
         overflow: 'hidden',
         fontFamily: "'Inter', sans-serif",
       }}>
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '0 12px' : '0 24px' }}>
           {/* Beautiful title like Rings by Style */}
-          <p style={{
-            margin: 0,
-            padding: isMobile ? '48px 0 16px' : '56px 0 24px',
-            textAlign: 'center',
-            fontFamily: "var(--font-dmsans),'DM Sans',system-ui,sans-serif",
-            fontSize: isMobile ? 12 : 15,
-            fontWeight: 400,
-            letterSpacing: isMobile ? '0.42em' : '0.55em',
-            textTransform: 'uppercase',
-            color: '#1a2e4a',
+          <p className="home-sec-title" style={{
+            padding: '0 0 40px',
           }}>Testimonials</p>
 
           {/* Dynamic Rating Section */}

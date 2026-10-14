@@ -40,7 +40,7 @@ export default function WhyChoose() {
       <style>{`
         .why-choose-section {
           background: #ffffff;
-          padding: 72px 48px 80px;
+          padding: clamp(48px,6vw,80px) clamp(20px,4vw,48px);
           font-family: "Lato", "Helvetica Neue", sans-serif;
         }
         .why-choose-grid {
@@ -62,7 +62,7 @@ export default function WhyChoose() {
         }
         @media (max-width: 640px) {
           .why-choose-section {
-            padding: 40px 20px;
+            padding: clamp(48px,6vw,80px) 20px;
           }
         }
       `}</style>
@@ -73,15 +73,8 @@ export default function WhyChoose() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.5 }}
-        style={{
-          textAlign: 'center',
-          fontFamily: '"Montserrat", sans-serif',
-          fontSize: 10,
-          letterSpacing: '0.25em',
-          textTransform: 'uppercase',
-          color: '#9e9489',
-          margin: '0 0 10px',
-        }}
+        className="home-sec-title"
+        style={{ margin: '0 0 14px' }}
       >
         Our Story
       </motion.p>
@@ -98,7 +91,7 @@ export default function WhyChoose() {
           fontWeight: 400,
           letterSpacing: '-0.01em',
           color: '#1a1714',
-          margin: '0 0 56px',
+          margin: '0 0 40px',
           lineHeight: 1.1,
         }}
       >

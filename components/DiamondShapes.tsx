@@ -143,7 +143,7 @@ function ShapeBlock({ shapes, heading, family, categories }: { shapes: ShapeItem
 
   return (
     <div className="ds-block">
-      {heading && <h3 className="ds-sec-title">{heading}</h3>}
+      {heading && <h3 className="ds-sec-title home-sec-title">{heading}</h3>}
 
       {/* ── Desktop: all shapes in one row ── */}
       <div className="ds-desktop-row">
@@ -174,7 +174,7 @@ function ShapeBlock({ shapes, heading, family, categories }: { shapes: ShapeItem
               </div>
             </div>
             <div className="ds-labels">
-              <span className="ds-name">{s.name.toUpperCase()}</span>
+              <span className="ds-name home-item-name">{s.name.toUpperCase()}</span>
               {s.sub && <span className="ds-sub">{s.sub}</span>}
             </div>
           </Link>
@@ -262,7 +262,7 @@ function ShapeBlock({ shapes, heading, family, categories }: { shapes: ShapeItem
 
       {/* Mobile label */}
       <div className="ds-mobile-label">
-        <span className="ds-mobile-name">{shapes[current].name}</span>
+        <span className="ds-mobile-name home-item-name">{shapes[current].name}</span>
         {shapes[current].sub && (
           <span className="ds-mobile-sub">{shapes[current].sub}</span>
         )}
@@ -317,9 +317,8 @@ export default function DiamondShapes({
       <style>{CSS}</style>
       <section className="ds-root">
         <div className="ds-head">
-          <p className="ds-eyebrow">Explore Shapes</p>
-          <span className="ds-rule" aria-hidden />
-          <p className="ds-desc">
+          <p className="ds-eyebrow home-sec-title">Explore Shapes</p>
+          <p className="ds-desc home-sec-desc">
             Discover our extraordinary collection of diamonds categorized by
             shape.
             <br />
@@ -349,56 +348,23 @@ const CSS = `
    Spacing comes from the margins below, not from box padding. */
 .ds-root {
   width: min(1240px, calc(100% - clamp(24px, 5vw, 64px)));
-  margin: clamp(36px, 5vw, 64px) auto clamp(24px, 4vw, 48px);
+  margin: clamp(48px,6vw,80px) auto;
   font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
 }
 
-/* ── Header ── */
-.ds-head { text-align: center; margin-bottom: clamp(20px, 2.6vw, 34px); }
+/* ── Header (eyebrow typography comes from the shared .home-sec-title) ── */
+.ds-head { text-align: center; margin-bottom: clamp(24px, 3vw, 40px); }
 .ds-eyebrow {
   display: block;
   margin: 0;
-  font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
-  font-size: clamp(21px, 2.4vw, 30px);
-  font-weight: 500;
-  font-style: italic;
-  letter-spacing: .04em;
-  color: #12233b;
 }
-.ds-rule {
-  display: block;
-  width: 74px;
-  height: 1px;
-  margin: 12px auto 16px;
-  background: linear-gradient(90deg, transparent, #C9A96E 30%, #C9A96E 70%, transparent);
-}
-.ds-desc {
-  font-size: 14px;
-  color: #3a4f6e;
-  line-height: 1.9;
-  font-weight: 300;
-  margin: 0;
-}
+/* Detail text uses the shared .home-sec-desc (font/color/spacing) */
 
-/* ── Per-category section heading (only when shapes are scoped) ── */
-.ds-block + .ds-block { margin-top: 44px; }
+/* ── Per-category section heading (same shared look as every block title) ── */
+.ds-block + .ds-block { margin-top: 48px; }
 .ds-sec-title {
-  margin: 0 0 6px;
+  margin: 0 0 22px;
   text-align: center;
-  font-family: var(--font-main, 'Cormorant Garamond', Georgia, serif);
-  font-size: clamp(17px, 1.8vw, 21px);
-  font-weight: 500;
-  font-style: italic;
-  letter-spacing: .04em;
-  color: #12233b;
-}
-.ds-sec-title::after {
-  content: '';
-  display: block;
-  width: 54px;
-  height: 1px;
-  margin: 10px auto 22px;
-  background: linear-gradient(90deg, transparent, #C9A96E 30%, #C9A96E 70%, transparent);
 }
 
 /* ═══════════════════════════════
@@ -472,18 +438,13 @@ const CSS = `
   gap: 4px;
 }
 .ds-name {
-  font-size: clamp(8px, .75vw, 11px);
-  font-weight: 500;
-  letter-spacing: .28em;
-  text-transform: uppercase;
-  color: #1a2e4a;
   white-space: nowrap;
   transition: color .24s ease;
 }
 .ds-item:hover .ds-name { color: #C9A96E; }
 .ds-sub {
   font-size: clamp(8px, .65vw, 10px);
-  color: #5a7090;
+  color: #555;
   white-space: nowrap;
   opacity: 0;
   transition: opacity .26s ease;
@@ -567,7 +528,7 @@ const CSS = `
   border: 1px solid rgba(26,46,74,.18);
   border-radius: 50%;
   cursor: pointer;
-  font-size: 22px; color: #1a2e4a;
+  font-size: 22px; color: #111;
   box-shadow: 0 2px 8px rgba(0,0,0,.06);
   transition: all .22s ease;
   -webkit-tap-highlight-color: transparent;
@@ -586,14 +547,11 @@ const CSS = `
   min-height: 52px;
 }
 .ds-mobile-name {
-  font-size: 22px;
-  font-weight: 400;
-  color: #1a2e4a;
-  letter-spacing: .08em;
+  margin: 0;
 }
 .ds-mobile-sub {
   font-size: 13px;
-  color: #5a7090;
+  color: #555;
   text-align: center;
   line-height: 1.6;
   padding: 0 32px;
@@ -615,7 +573,7 @@ const CSS = `
   transition: all .24s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.ds-dot--active { width: 22px; border-radius: 4px; background: #1a2e4a; }
+.ds-dot--active { width: 22px; border-radius: 4px; background: #111; }
 
 /* ═══════════════════════════════
    RESPONSIVE
@@ -627,12 +585,8 @@ const CSS = `
   .ds-dots { display: flex; }
   .ds-root {
     width: calc(100% - 24px);
-    margin: 28px auto 24px;
   }
-  .ds-eyebrow { font-size: 20px; }
-  .ds-rule { margin: 10px auto 14px; }
-  .ds-desc { font-size: 13px; padding: 0; }
-  .ds-sec-title { font-size: 17px; margin-bottom: 0; }
+  /* Heading + detail sizes come from the shared homepage classes */
   .ds-block + .ds-block { margin-top: 30px; }
 }
 `;
