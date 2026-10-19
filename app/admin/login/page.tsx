@@ -95,6 +95,28 @@ const CSS = `
 .lg-eye{ position:absolute; right:11px; top:50%; transform:translateY(-50%); background:transparent; border:none; cursor:pointer; color:var(--c-text-faint); padding:5px; transition:color .18s; }
 .lg-eye:hover{ color:var(--c-accent); }
 
+/* Keep-signed-in row */
+.lg-keep{
+  display:flex; align-items:center; gap:10px; margin:2px 0 18px;
+  font-size:12.5px; color:var(--c-text-muted); cursor:pointer;
+  user-select:none;
+}
+.lg-keep input{
+  appearance:none; width:17px; height:17px; margin:0; cursor:pointer;
+  border:1px solid var(--c-border-strong); border-radius:5px; background:#fff;
+  display:grid; place-items:center;
+  transition:background .16s, border-color .16s;
+  flex-shrink:0;
+}
+.lg-keep input:checked{ background:var(--c-accent); border-color:var(--c-accent); }
+.lg-keep input:checked::after{
+  content:''; width:9px; height:5px;
+  border-left:1.8px solid #fff; border-bottom:1.8px solid #fff;
+  transform:translateY(-1px) rotate(-45deg);
+}
+.lg-keep:focus-within input{ outline:2px solid var(--c-accent-soft); outline-offset:2px; }
+.lg-keep span b{ color:var(--c-text); font-weight:500; }
+
 .lg-submit{
   width:100%; height:48px; margin-top:6px; border:none; cursor:pointer; border-radius:10px;
   background:var(--c-accent); color:#fff;
@@ -124,6 +146,12 @@ export default function AdminLoginPage() {
   const [loading, setLoading]   = useState(false)
   const [showPw, setShowPw]     = useState(false)
 
+  // "Keep me signed in" — checked by default. When checked, the Supabase
+  // session stays persisted across browser restarts and the admin panel keeps
+  // verifying against the live token (no forced re-login). Remembering the
+  // PASSWORD is insecure and is deliberately NOT done.
+  const [keepSignedIn, setKeepSignedIn] = useState(true)
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(p => ({ ...p, [e.target.name]: e.target.value }))
     setError('')
@@ -138,7 +166,12 @@ export default function AdminLoginPage() {
       if (!userId) throw new Error('Sign in failed')
       const res = await fetch('/api/admin/check', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Send the fresh token right away so this check can never race the
+          // cookie bridge (the very bug that bounced admins to login).
+          Authorization: `Bearer ${data.session?.access_token}`,
+        },
         body: JSON.stringify({ userId }),
       })
       if (!res.ok) {
@@ -148,6 +181,13 @@ export default function AdminLoginPage() {
 
       // Set admin flag in localStorage
       try { localStorage.setItem('isAdmin', 'true') } catch { }
+
+      // Remember-me preference — the layout reads this to decide whether the
+      // persisted session should be treated as still valid for this browser.
+      try {
+        if (keepSignedIn) localStorage.setItem('admin_keep_signed_in', 'true')
+        else localStorage.setItem('admin_keep_signed_in', 'false')
+      } catch { }
 
       // Wait for the session to be fully persisted before navigating
       const { supabase } = await import('@/lib/supabase')
@@ -246,6 +286,15 @@ export default function AdminLoginPage() {
                 </button>
               </div>
             </div>
+
+            <label className="lg-keep">
+              <input
+                type="checkbox"
+                checked={keepSignedIn}
+                onChange={(e) => setKeepSignedIn(e.target.checked)}
+              />
+              <span>Keep me signed in — <b>no repeated login</b> after closing the browser</span>
+            </label>
 
             <button type="submit" className="lg-submit" disabled={loading}>
               {loading

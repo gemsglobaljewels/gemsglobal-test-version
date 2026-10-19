@@ -3,9 +3,14 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { Plus, Save, RotateCw, Trash2, Gem, Layers, Check, EyeOff, ImageIcon, Loader2 } from 'lucide-react'
 import ScopeCategoryPicker from '@/components/admin/ScopeCategoryPicker'
-import { appliesLabel, categoryFamily, groupByFamily, type CategoryRef } from '@/lib/categoryScope'
+import { appliesLabel, categoryFamily, groupByFamily, isHiddenInFamily, type CategoryRef } from '@/lib/categoryScope'
 
-type ShapeItem = { key: string; name: string; sub?: string; image?: string; is_enabled?: boolean; category_ids?: string[] }
+type ShapeItem = {
+  key: string; name: string; sub?: string; image?: string
+  is_enabled?: boolean; category_ids?: string[]
+  /** Homepage boxes (family names) this shape is hidden from — per-box hide. */
+  hidden_families?: string[]
+}
 
 export default function AdminDiamondShapesPage() {
   const [items, setItems] = useState<ShapeItem[]>([])
@@ -88,14 +93,82 @@ export default function AdminDiamondShapesPage() {
     setIsDirty(true)
   }
 
-  // Homepage visibility — one switch per row, exactly like the Styles table.
-  // is_enabled drives both the Explore Shapes widget and the category filters.
-  function handleToggle(idx: number) {
+  // Homepage visibility.
+  //  · In the "All shapes" view the switch = GLOBAL (is_enabled) — the shape
+  //    disappears from every box.
+  //  · Inside a specific box tab (e.g. Necklaces) the switch is BOX-ONLY — it
+  //    adds/removes that family in `hidden_families`, so other boxes
+  //    (Rings, Diamonds…) are untouched. This is what used to hide
+  //    "everything" when one box was toggled.
+  // is_enabled drives the Explore Shapes widget and the category filters.
+  function handleToggle(idx: number, family?: string) {
     const it = items[idx]
+    const label = it.name || it.key || 'Shape'
+
+    // ── Box-specific toggle (tab view) ──
+    if (family) {
+      // If the shape is switched off globally, turning a box switch on should
+      // bring the shape back everywhere (otherwise the family flag would do
+      // nothing and the admin thinks it is broken).
+      if (it.is_enabled === false) {
+        updateRow(idx, { is_enabled: true, hidden_families: (it.hidden_families || []).filter(f => categoryFamily(f) !== family) })
+        setMessage(`"${label}" shows on the homepage again (every box, including ${family})`)
+        setTimeout(() => setMessage(null), 3000)
+        return
+      }
+      const hidden = isHiddenInFamily(it, family)
+      const nextList = hidden
+        ? (it.hidden_families || []).filter(f => categoryFamily(f) !== family)
+        : [...(it.hidden_families || []), family]
+      updateRow(idx, { hidden_families: nextList })
+      setMessage(hidden
+        ? `"${label}" shows again in the ${family} box (other boxes never changed)`
+        : `"${label}" hidden from the ${family} box only — its other boxes still show it`)
+      setTimeout(() => setMessage(null), 3000)
+      return
+    }
+
+    // ── Global toggle ("All shapes" view) ──
     const next = !(it.is_enabled !== false)
     updateRow(idx, { is_enabled: next })
-    setMessage(next ? `"${it.name || it.key || 'Shape'}" shows on the homepage` : `"${it.name || it.key || 'Shape'}" hidden from the homepage`)
+    setMessage(next ? `"${label}" shows on the homepage` : `"${label}" hidden from the homepage everywhere`)
     setTimeout(() => setMessage(null), 2400)
+  }
+
+  // Group-level switch — flip the visibility of ONE box (e.g. all Necklaces)
+  // in a single click WITHOUT touching the other boxes. Instead of the global
+  // is_enabled flag (which hid a multi-box shape everywhere — the bug), this
+  // stamps/un-stamps the box name in each row's hidden_families.
+  function setGroupVisibility(rows: ShapeItem[], next: boolean, title: string) {
+    if (rows.length === 0) return
+    const onInBox = rows.filter((it) => isEnabled(it) && !isHiddenInFamily(it, title)).length
+    if (next && onInBox === rows.length) return   // whole box already on
+    if (!next && onInBox === 0) return            // whole box already off
+    const targets = new Set<ShapeItem>(rows)
+    setItems((prev) => prev.map((it) => {
+      if (!targets.has(it)) return it
+      const list = (it.hidden_families || []).filter((f) => categoryFamily(f) !== title)
+      // A shape switched off globally stays off; the box flag only governs
+      // the boxes it is scoped to showcase in.
+      return { ...it, hidden_families: next ? list : [...list, title] }
+    }))
+    setIsDirty(true)
+    setMessage(
+      `${title} — ${rows.length} shape${rows.length === 1 ? '' : 's'} ` +
+      (next ? `visible again in the ${title} box` : `hidden from the ${title} box only (other boxes unaffected)`) +
+      '. Press Save Changes to apply.'
+    )
+    setTimeout(() => setMessage(null), 3200)
+  }
+
+  // Emergency recovery — everything visible in every box again. Only the
+  // "Forgotten settings" case: a global off from an older session or box
+  // hides nobody remembers making.
+  function resetEverything() {
+    setItems((prev) => prev.map((it) => ({ ...it, is_enabled: true, hidden_families: [] })))
+    setIsDirty(true)
+    setMessage('Reset — every shape shows on the homepage again. Press Save Changes to apply.')
+    setTimeout(() => setMessage(null), 3000)
   }
 
   async function uploadImage(idx: number, file: File | null) {
@@ -172,11 +245,39 @@ export default function AdminDiamondShapesPage() {
     String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
   const boxSections = groupByFamily(items, categories)
   const visibleSections = tab === 'ALL' ? boxSections : boxSections.filter(s => s.title === tab)
+  // Tabs must ALWAYS list every jewellery family the categories can form —
+  // even when a box has no shapes yet — so the admin can pick an empty box
+  // and "Add Shape to <box>" into it. Families with shapes keep the homepage
+  // order; families without shapes append alphabetically at the end.
+  const allTabs = (() => {
+    const tabs = boxSections.map((s) => ({ title: s.title, count: s.rows.length }))
+    const known = new Set(tabs.map((t) => t.title))
+    for (const c of categories) {
+      const fam = categoryFamily(c.name) || c.name
+      if (fam && fam !== 'Featured' && !known.has(fam)) {
+        known.add(fam)
+        tabs.push({ title: fam, count: 0 })
+      }
+    }
+    return tabs
+  })()
   // groupByFamily hands back the same row refs, so the original index (needed
   // by edit/upload/delete) is recovered through identity.
   const idxOf = new Map<ShapeItem, number>(items.map((it, i) => [it, i]))
   const totalOn = items.filter(isEnabled).length
   const noImage = items.filter(it => !it.image).length
+  // Rows of the currently-open box (tab view) + whether every one shows in
+  // THIS box — drives the single "Hide/Show all {tab}" toolbar switch.
+  // Family-scoped: a row counted on here may still be off in other boxes.
+  const tabRows = tab === 'ALL' ? [] : (visibleSections[0]?.rows || [])
+  const visibleInTab = (it: ShapeItem) => isEnabled(it) && !isHiddenInFamily(it, tab)
+  const tabAllOn = tabRows.length > 0 && tabRows.every(visibleInTab)
+  // Any trouble anywhere (a global off or a box hide) exposes the emergency
+  // "Reset all" recovery button in the All shapes toolbar.
+  const offCount = items.filter(it =>
+    it.is_enabled === false ||
+    (Array.isArray(it.hidden_families) && it.hidden_families.length > 0)
+  ).length
 
   return (
     <div className="a-page">
@@ -231,8 +332,10 @@ export default function AdminDiamondShapesPage() {
           <h1 className="a-title">Diamond <em>Shapes</em></h1>
           <p className="a-subtitle">
             One box per jewellery family on the homepage — <strong>Bracelets</strong>, <strong>Diamonds</strong>…
-            The tabs open one box at a time (“All shapes” stacks every box grouped). Tick <strong>Categories</strong> on
-            a row to move it into another box; the switch turns a row on/off on the homepage. Rows stay A → Z.
+            Tabs open one box at a time (“All shapes” stacks every box grouped). Use <strong>Show all / Hide all</strong> to
+            turn a whole box on/off in one click, or the per-row switch for a single shape — <strong>toggles inside a tab
+            only affect that box</strong>, never the other boxes the shape lives in. The <strong>Categories</strong> editor
+            moves a shape between boxes — open it from the “All shapes” view.
           </p>
         </div>
         <div className="a-head-actions">
@@ -302,21 +405,44 @@ export default function AdminDiamondShapesPage() {
           >
             All shapes <span className="a-tab-count">{items.length}</span>
           </button>
-          {boxSections.map(s => (
+          {allTabs.map(s => (
             <button
               key={s.title}
               className={`a-tab${tab === s.title ? ' is-on' : ''}`}
               onClick={() => setTab(s.title)}
               title={`Only the shapes in the “${s.title}” homepage box`}
             >
-              {s.title} <span className="a-tab-count">{s.rows.length}</span>
+              {s.title} <span className="a-tab-count">{s.count}</span>
             </button>
           ))}
         </div>
-        <div className="a-toolbar-group">
+        <div className="a-toolbar-group" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="a-btn a-btn--primary" onClick={addRow} disabled={saving}>
             <Plus size={15} strokeWidth={2.5} /> Add Shape{tab === 'ALL' ? '' : ` to ${tab}`}
           </button>
+          {tab !== 'ALL' && tabRows.length > 0 && (
+            <button
+              className="a-btn a-btn--subtle"
+              disabled={saving}
+              onClick={() => setGroupVisibility(tabRows, !tabAllOn, tab)}
+              title={tabAllOn
+                ? `Hide every ${tab} shape from the ${tab} box only — other boxes stay untouched`
+                : `Show every ${tab} shape in the ${tab} box again`}
+            >
+              {tabAllOn ? <EyeOff size={15} /> : <Check size={15} />}
+              {tabAllOn ? `Hide all ${tab} (this box only)` : `Show all ${tab} on homepage`}
+            </button>
+          )}
+          {tab === 'ALL' && offCount > 0 && (
+            <button
+              className="a-btn a-btn--subtle"
+              disabled={saving}
+              onClick={() => resetEverything()}
+              title="Emergency recovery: turn every shape back on in every box (clears global offs AND box hides)"
+            >
+              <RotateCw size={15} /> Reset all — show everywhere
+            </button>
+          )}
         </div>
       </div>
 
@@ -389,7 +515,9 @@ export default function AdminDiamondShapesPage() {
               ) : (
                 visibleSections.map(sec => {
                   const rows = [...sec.rows].sort(byName)
-                  const offCount = rows.filter(it => !isEnabled(it)).length
+                  // How many rows do NOT show in THIS box (globally off OR
+                  // hidden from this family) — group note + Show/Hide buttons.
+                  const offCount = rows.filter(it => !isEnabled(it) || isHiddenInFamily(it, sec.title)).length
                   return (
                     <Fragment key={sec.title}>
                       {tab === 'ALL' && (
@@ -400,7 +528,27 @@ export default function AdminDiamondShapesPage() {
                               <span className="a-badge a-badge--neutral">
                                 {rows.length} shape{rows.length === 1 ? '' : 's'}
                               </span>
-                              {offCount > 0 && <span className="a-grp-note">{offCount} hidden on the homepage</span>}
+                              {offCount > 0 && <span className="a-grp-note">{offCount} hidden from this box</span>}
+                              {/* One switch for the WHOLE box — hide or show
+                                  every shape of this family in a click */}
+                              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                                <button
+                                  className="a-btn a-btn--ghost a-btn--sm"
+                                  disabled={offCount === 0 || saving}
+                                  onClick={() => setGroupVisibility(rows, true, sec.title)}
+                                  title={`Show every shape of ${sec.title} on the homepage`}
+                                >
+                                  <Check size={12} />&nbsp;Show all
+                                </button>
+                                <button
+                                  className="a-btn a-btn--ghost a-btn--sm"
+                                  disabled={offCount === rows.length || saving}
+                                  onClick={() => setGroupVisibility(rows, false, sec.title)}
+                                  title={`Hide every shape of ${sec.title} from the homepage`}
+                                >
+                                  <EyeOff size={12} />&nbsp;Hide all
+                                </button>
+                              </div>
                             </div>
                           </td>
                         </tr>
@@ -464,43 +612,83 @@ export default function AdminDiamondShapesPage() {
                         />
                       </td>
 
-                      {/* Scope: which box this row lives in + editor */}
+                      {/* Scope — SIMPLE MODE: inside a specific box (e.g. the
+                          Earrings tab) the picker is pointless — the admin
+                          already said "this box", so show a calm badge. The
+                          full editor lives in the "All shapes" view. */}
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11.5, color: 'var(--c-text-muted)' }}>
-                            {appliesLabel({ category_ids: it.category_ids }, categories)}
-                          </span>
-                          <button
-                            type="button"
-                            className="a-btn a-btn--subtle a-btn--sm"
-                            onClick={() => setExpandedKey(expandedKey === (it.key || `row-${idx}`) ? null : (it.key || `row-${idx}`))}
-                          >
-                            <Layers size={12} />&nbsp;{expandedKey === (it.key || `row-${idx}`) ? 'Close' : 'Categories'}
-                          </button>
-                        </div>
-                        {expandedKey === (it.key || `row-${idx}`) && (
-                          <ScopeCategoryPicker
-                            rowLabel={it.name || it.key || 'shape'}
-                            value={it.category_ids || []}
-                            categories={categories}
-                            onChange={(ids) => updateRow(idx, { category_ids: ids })}
-                            onClose={() => setExpandedKey(null)}
-                            noun="this shape"
-                          />
+                        {tab === 'ALL' ? (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11.5, color: 'var(--c-text-muted)' }}>
+                                {appliesLabel({ category_ids: it.category_ids }, categories)}
+                              </span>
+                              <button
+                                type="button"
+                                className="a-btn a-btn--subtle a-btn--sm"
+                                onClick={() => setExpandedKey(expandedKey === (it.key || `row-${idx}`) ? null : (it.key || `row-${idx}`))}
+                              >
+                                <Layers size={12} />&nbsp;{expandedKey === (it.key || `row-${idx}`) ? 'Close' : 'Categories'}
+                              </button>
+                            </div>
+                            {expandedKey === (it.key || `row-${idx}`) && (
+                              <ScopeCategoryPicker
+                                rowLabel={it.name || it.key || 'shape'}
+                                value={it.category_ids || []}
+                                categories={categories}
+                                onChange={(ids) => updateRow(idx, { category_ids: ids })}
+                                onClose={() => setExpandedKey(null)}
+                                noun="this shape"
+                              />
+                            )}
+                          </>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span className="a-badge a-badge--neutral" title={`This shape shows in the ${tab} homepage box`}>
+                              ✓ {tab}
+                            </span>
+                            {(it.category_ids?.length || 0) > 0 && (
+                              <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 10.5, color: 'var(--c-text-faint)' }}>
+                                also in “All shapes” view
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
 
-                      {/* Homepage visibility */}
+                      {/* Homepage visibility — view-dependent switch:
+                          "All shapes" = global on/off, tab view = THIS box
+                          only (hidden_families), so hiding Necklaces never
+                          hides the same shape from Rings/Diamonds. */}
                       <td style={{ textAlign: 'center' }}>
-                        <label className="a-switch" title={enabled ? 'Hide from the homepage' : 'Show on the homepage'}>
-                          <input
-                            type="checkbox"
-                            checked={enabled}
-                            onChange={() => handleToggle(idx)}
-                          />
-                          <span className="a-switch-slider" />
-                        </label>
-                        <div className="a-home-cap">{enabled ? 'On homepage' : 'Hidden'}</div>
+                        {(() => {
+                          const globalOn = enabled
+                          const rowOn = tab === 'ALL' ? globalOn : (globalOn && !isHiddenInFamily(it, tab))
+                          const caption = tab === 'ALL'
+                            ? (rowOn ? 'On homepage' : 'Hidden everywhere')
+                            : !globalOn
+                              ? 'Off everywhere'
+                              : rowOn ? `Shows in ${tab}` : `Hidden in ${tab}`
+                          const title = tab === 'ALL'
+                            ? (rowOn ? 'Hide from the homepage everywhere' : 'Show on the homepage everywhere')
+                            : !globalOn
+                              ? 'Globally switched off — turn it on from the All shapes view'
+                              : rowOn ? `Hide from the ${tab} box only` : `Show again in the ${tab} box`
+                          return (
+                            <>
+                              <label className="a-switch" title={title}>
+                                <input
+                                  type="checkbox"
+                                  checked={rowOn}
+                                  disabled={tab !== 'ALL' && !globalOn}
+                                  onChange={() => handleToggle(idx, tab === 'ALL' ? undefined : tab)}
+                                />
+                                <span className="a-switch-slider" />
+                              </label>
+                              <div className="a-home-cap">{caption}</div>
+                            </>
+                          )
+                        })()}
                       </td>
 
                       {/* Delete */}

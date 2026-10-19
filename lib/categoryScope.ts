@@ -112,6 +112,25 @@ export function appliesLabel(
   return `${names.slice(0, 2).join(', ')} +${names.length - 2}`
 }
 
+/**
+ * True when a row is hidden from ONE homepage box (jewellery family) while
+ * still showing in its other boxes. A row can be scoped to several families,
+ * and a single global is_enabled flag would hide it from ALL of them —
+ * `hidden_families` (family names, e.g. 'Necklaces') keeps the hide
+ * box-specific. Combined with is_enabled: visible in a box =
+ * is_enabled !== false AND family not in hidden_families.
+ */
+export function isHiddenInFamily(
+  row: { hidden_families?: string[] | null } | null | undefined,
+  family: string
+): boolean {
+  const list = row?.hidden_families
+  if (!Array.isArray(list) || list.length === 0) return false
+  const f = String(family).trim().toLowerCase()
+  if (!f) return false
+  return list.some((h) => String(h).trim().toLowerCase() === f)
+}
+
 /** Category ids a product form should stamp on a newly added lookup row. */
 export function defaultScopeFor(productCategoryId?: string | null, picked?: string[] | null): string[] {
   if (Array.isArray(picked)) return picked.map(String)

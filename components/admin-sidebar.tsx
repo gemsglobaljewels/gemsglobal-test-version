@@ -264,7 +264,7 @@ export function AdminSidebar() {
           </div>
 
           {/* Nav */}
-          <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
+          <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3" style={{ overscrollBehavior: 'contain' }}>
             {!compact && <div className="asb-sec">Main</div>}
             {MAIN_LINKS.map(link => {
               const Icon = link.icon;

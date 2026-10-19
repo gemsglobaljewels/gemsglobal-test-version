@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { groupByFamily, categoryFamily, type CategoryRef } from "@/lib/categoryScope";
+import { groupByFamily, categoryFamily, isHiddenInFamily, type CategoryRef } from "@/lib/categoryScope";
 
 interface ShapeItem {
   key: string;
@@ -308,7 +308,12 @@ export default function DiamondShapes({
   // A shape is a stone cut, so by default every category shares one row and
   // nothing looks different. If admin scopes shapes (Admin → Diamond Shapes)
   // they split into sections — same grouping the Styles block uses.
-  const sections = groupByFamily(shapes, categories || []);
+  // BOX-VISIBILITY: a shape scoped to several families may be hidden from one
+  // of them (hidden_families) while still showing in the others — filter the
+  // hidden ones out per section instead of dropping the row globally.
+  const sections = groupByFamily(shapes, categories || [])
+    .map((sec) => ({ ...sec, rows: sec.rows.filter((s: any) => !isHiddenInFamily(s, sec.title)) }))
+    .filter((sec) => sec.rows.length > 0);
   if (sections.length === 0) return null;
   const multi = sections.length > 1;
 
